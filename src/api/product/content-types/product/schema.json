@@ -1,0 +1,59 @@
+{
+  "kind": "collectionType",
+  "collectionName": "products",
+  "info": {
+    "singularName": "product",
+    "pluralName": "products",
+    "displayName": "Product"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "json"
+    },
+    "price": {
+      "type": "integer"
+    },
+    "description": {
+      "type": "text"
+    },
+    "type": {
+      "type": "enumeration",
+      "enum": [
+        "plantas",
+        "cuidados"
+      ]
+    },
+    "subcategory": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::subcategory.subcategory",
+      "inversedBy": "products"
+    },
+    "image": {
+      "type": "string"
+    },
+    "variants": {
+      "type": "component",
+      "component": "product.variant",
+      "repeatable": true
+    },
+    "stock": {
+      "type": "integer"
+    },
+    "featured": {
+      "type": "boolean"
+    },
+    "metadata": {
+      "type": "component",
+      "component": "product.plant-metadata",
+      "repeatable": false
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "collectionName": "components_product_plant_metadata",
+  "info": {
+    "displayName": "plant-metadata"
+  },
+  "options": {},
+  "attributes": {
+    "scientificName": {
+      "type": "string"
+    },
+    "origin": {
+      "type": "string"
+    },
+    "type_plant": {
+      "type": "string"
+    },
+    "propagation": {
+      "type": "string"
+    },
+    "light": {
+      "type": "string"
+    },
+    "water": {
+      "type": "string"
+    },
+    "temperature": {
+      "type": "string"
+    },
+    "humidity": {
+      "type": "string"
+    },
+    "substratum": {
+      "type": "string"
+    },
+    "growth": {
+      "type": "string"
+    },
+    "pet_friendly": {
+      "type": "boolean"
+    },
+    "difficulty": {
+      "type": "string"
+    },
+    "care_tips": {
+      "type": "text"
+    },
+    "dimensions": {
+      "type": "string"
+    },
+    "material": {
+      "type": "string"
+    }
+  },
+  "config": {}
+}

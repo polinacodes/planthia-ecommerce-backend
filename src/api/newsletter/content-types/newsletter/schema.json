@@ -1,0 +1,34 @@
+{
+  "kind": "collectionType",
+  "collectionName": "newsletters",
+  "info": {
+    "singularName": "newsletter",
+    "pluralName": "newsletters",
+    "displayName": "newsletter"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "email": {
+      "type": "email",
+      "required": true,
+      "unique": true
+    },
+    "discount_code": {
+      "type": "string"
+    },
+    "discount_used": {
+      "type": "boolean",
+      "default": false
+    },
+    "subscribed_at": {
+      "type": "datetime"
+    },
+    "discount_sent": {
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
