@@ -20,7 +20,8 @@
         "pending",
         "paid",
         "shipped",
-        "delivered"
+        "delivered",
+        "failure"
       ]
     },
     "customer_email": {

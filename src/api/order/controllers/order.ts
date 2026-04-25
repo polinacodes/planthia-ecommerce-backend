@@ -201,33 +201,60 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
   },
 
   async webhook(ctx) {
-    console.log("🔥 Recibiendo petición en el webhook:", ctx.request.body);
-    const { query, body } = ctx.request;
-    const paymentId = query['data.id'] || (body.data && body.data.id);
+  console.log("🔥 Recibiendo petición en el webhook:", JSON.stringify(ctx.request.body));
+  
+  const { body } = ctx.request;
+  const paymentId = body.data?.id;
 
-    if (query.topic === 'payment' || query.type === 'payment') {
-      try {
-        const client = new MercadoPagoConfig({
-          accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || '',
-        });
-        const payment = new Payment(client);
+  if (body.type === 'payment' && paymentId) {
+    try {
+      const client = new MercadoPagoConfig({
+        accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || '',
+      });
+      const payment = new Payment(client);
 
-        const paymentDetails = await payment.get({ id: paymentId });
+      // 1. Obtener detalles completos desde Mercado Pago
+      const paymentDetails = await payment.get({ id: paymentId });
+      const orderId = paymentDetails.external_reference;
 
-        if (paymentDetails.status === 'approved') {
-          const orderId = paymentDetails.external_reference;
+      // 2. Mapeo de estados de Mercado Pago a tus estados de Strapi
+      // MP status: 'approved', 'pending', 'in_process', 'rejected', 'cancelled', 'refunded'
+      let newStatus = 'pending'; // Por defecto
 
-          await strapi.db.query('api::order.order').update({
-            where: { id: orderId },
-            data: { order_status: 'paid' },
+      if (paymentDetails.status === 'approved') newStatus = 'paid';
+      else if (paymentDetails.status === 'rejected' || paymentDetails.status === 'cancelled') newStatus = 'failure';
+      else if (paymentDetails.status === 'in_process' || paymentDetails.status === 'pending') newStatus = 'pending';
+
+      const orderUpdated = await strapi.db.query('api::order.order').update({
+        where: { id: orderId },
+        data: { 
+          order_status: newStatus,
+          payment_id: paymentId 
+        },
+        populate: ['cart_items', 'cart_items.product'] 
+      });
+
+      if (newStatus === 'paid') {
+        console.log(`📦 Descontando stock para la orden ${orderId}...`);
+        
+        for (const item of orderUpdated.cart_items) {
+          const product = item.product; 
+          const newStock = product.stock - item.quantity;
+
+          await strapi.db.query('api::product.product').update({
+            where: { id: product.id },
+            data: { stock: newStock }
           });
-          console.log(`✅ Orden ${orderId} aprobada correctamente vía Webhook`);
+          console.log(`✅ Stock de ${product.name} actualizado a: ${newStock}`);
         }
-      } catch (err) {
-        console.error('❌ Error procesando el webhook:', err);
       }
+      
+      console.log(`✅ Orden ${orderId} actualizada a: ${newStatus}`);
+    } catch (err) {
+      console.error('❌ Error procesando el webhook:', err);
     }
+  }
 
-    return ctx.send('OK');
-  },
+  return ctx.send('OK');
+},
 }));
