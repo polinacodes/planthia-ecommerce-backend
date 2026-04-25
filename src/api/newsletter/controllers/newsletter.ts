@@ -85,5 +85,43 @@ export default factories.createCoreController('api::newsletter.newsletter', ({ s
       message: '¡Suscripción exitosa! Revisa tu email.',
       discountCode
     });
+  },
+
+  // 👇 AGREGÁ ESTO (el nuevo método para validar cupones)
+  async validateDiscount(ctx) {
+    const { code } = ctx.request.body;
+
+    console.log('🔍 Validando código:', code);
+
+    if (!code) {
+      return ctx.badRequest('❌ Código requerido');
+    }
+
+    // Buscar el código en la colección Newsletter
+    const subscriber = await strapi.db.query('api::newsletter.newsletter').findOne({
+      where: { discount_code: code }
+    });
+
+    if (!subscriber) {
+      console.log('❌ Código no encontrado:', code);
+      return ctx.notFound('❌ Código inválido');
+    }
+
+    console.log('📋 Suscriptor encontrado:', subscriber.email);
+
+    if (subscriber.discount_used) {
+      console.log('❌ Código ya usado:', code);
+      return ctx.badRequest('❌ Este código ya fue utilizado');
+    }
+
+    // Código válido (10% de descuento)
+    console.log('✅ Código válido!');
+    return ctx.send({
+      valid: true,
+      discountAmount: 10,
+      discountType: 'percentage',
+      discountValue: 10,
+      message: '🎉 Código aplicado correctamente'
+    });
   }
 }));

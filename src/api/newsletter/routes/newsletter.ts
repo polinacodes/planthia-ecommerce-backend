@@ -11,10 +11,16 @@ export default {
     {
       method: 'POST',
       path: '/newsletter/subscribe',
-      handler: 'api::newsletter.newsletter.subscribe',
+      handler: 'newsletter.subscribe',
       config: {
         auth: false,
       },
+    },
+     {
+      method: 'POST',
+      path: '/validate-discount',
+      handler: 'api::newsletter.newsletter.validateDiscount',
+      config: { auth: false },
     },
   ],
 };
