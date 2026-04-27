@@ -1,3 +1,4 @@
+// //src/api/order/routes/order.ts
 export default {
   routes: [
     {
@@ -8,18 +9,13 @@ export default {
         auth: false,
       },
     },
-    { method: 'GET', 
-      path: '/orders/:id', 
-      handler: 'order.findOne', 
-      config: { 
-        auth: false 
-      } 
-    },
     {
-      method: 'POST',
-      path: '/orders/webhook',
-      handler: 'order.webhook',
-      config: { auth: false },
+      method: 'GET',
+      path: '/orders/:id',
+      handler: 'order.findOne',
+      config: {
+        auth: false,
+      },
     },
   ],
 };

@@ -507,14 +507,20 @@ export interface ApiOrderOrder extends Struct.CollectionTypeSchema {
     singularName: 'order';
   };
   options: {
-    draftAndPublish: true;
+    draftAndPublish: false;
   };
   attributes: {
+    address: Schema.Attribute.String;
+    city: Schema.Attribute.String;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     customer_email: Schema.Attribute.Email;
+    discount_amount: Schema.Attribute.Decimal;
+    discount_code: Schema.Attribute.String;
+    first_name: Schema.Attribute.String;
     items: Schema.Attribute.JSON;
+    last_name: Schema.Attribute.String;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::order.order'> &
       Schema.Attribute.Private;
@@ -522,15 +528,20 @@ export interface ApiOrderOrder extends Struct.CollectionTypeSchema {
       ['pending', 'paid', 'shipped', 'delivered', 'failure']
     >;
     payment_id: Schema.Attribute.String;
+    payment_method: Schema.Attribute.String;
+    phone: Schema.Attribute.Integer;
     publishedAt: Schema.Attribute.DateTime;
+    shipping_cost: Schema.Attribute.Decimal;
+    subtotal: Schema.Attribute.Decimal;
     total: Schema.Attribute.Decimal;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     user: Schema.Attribute.Relation<
-      'oneToMany',
+      'manyToOne',
       'plugin::users-permissions.user'
     >;
+    zip_code: Schema.Attribute.String;
   };
 }
 
@@ -1083,7 +1094,7 @@ export interface PluginUsersPermissionsUser
       'plugin::users-permissions.user'
     > &
       Schema.Attribute.Private;
-    orders: Schema.Attribute.Relation<'manyToOne', 'api::order.order'>;
+    orders: Schema.Attribute.Relation<'oneToMany', 'api::order.order'>;
     password: Schema.Attribute.Password &
       Schema.Attribute.Private &
       Schema.Attribute.SetMinMaxLength<{

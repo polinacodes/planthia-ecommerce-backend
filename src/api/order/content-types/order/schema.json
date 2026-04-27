@@ -7,7 +7,7 @@
     "displayName": "Order"
   },
   "options": {
-    "draftAndPublish": true
+    "draftAndPublish": false
   },
   "pluginOptions": {},
   "attributes": {
@@ -35,9 +35,42 @@
     },
     "user": {
       "type": "relation",
-      "relation": "oneToMany",
+      "relation": "manyToOne",
       "target": "plugin::users-permissions.user",
-      "mappedBy": "orders"
+      "inversedBy": "orders"
+    },
+    "first_name": {
+      "type": "string"
+    },
+    "last_name": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "integer"
+    },
+    "address": {
+      "type": "string"
+    },
+    "city": {
+      "type": "string"
+    },
+    "zip_code": {
+      "type": "string"
+    },
+    "subtotal": {
+      "type": "decimal"
+    },
+    "shipping_cost": {
+      "type": "decimal"
+    },
+    "payment_method": {
+      "type": "string"
+    },
+    "discount_code": {
+      "type": "string"
+    },
+    "discount_amount": {
+      "type": "decimal"
     }
   }
 }
