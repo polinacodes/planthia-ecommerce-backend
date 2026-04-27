@@ -529,7 +529,7 @@ export interface ApiOrderOrder extends Struct.CollectionTypeSchema {
     >;
     payment_id: Schema.Attribute.String;
     payment_method: Schema.Attribute.String;
-    phone: Schema.Attribute.Integer;
+    phone: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;
     shipping_cost: Schema.Attribute.Decimal;
     subtotal: Schema.Attribute.Decimal;

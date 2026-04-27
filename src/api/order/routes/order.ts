@@ -1,4 +1,4 @@
-// //src/api/order/routes/order.ts
+// src/api/order/routes/order.ts
 export default {
   routes: [
     {
@@ -13,6 +13,14 @@ export default {
       method: 'GET',
       path: '/orders/:id',
       handler: 'order.findOne',
+      config: {
+        auth: false,
+      },
+    },
+    {
+      method: 'PUT',
+      path: '/orders/:id/status',
+      handler: 'order.updateStatus',
       config: {
         auth: false,
       },

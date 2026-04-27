@@ -46,7 +46,7 @@
       "type": "string"
     },
     "phone": {
-      "type": "integer"
+      "type": "string"
     },
     "address": {
       "type": "string"
