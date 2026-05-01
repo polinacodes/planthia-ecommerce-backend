@@ -137,19 +137,122 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
     return entity;
   },
 
+  // async updateStatus(ctx) {
+  //   const { id } = ctx.params;
+  //   const { order_status } = ctx.request.body;
+
+  //   try {
+  //     await strapi.db.query('api::order.order').update({
+  //       where: { id: id },
+  //       data: { order_status }
+  //     });
+
+  //     return ctx.send({ ok: true, message: 'Orden actualizada' });
+  //   } catch (error) {
+  //     console.error('Error actualizando estado:', error);
+  //     return ctx.internalServerError('Error actualizando orden');
+  //   }
+  // }
+
+  // async updateStatus(ctx) {
+  //   const { id } = ctx.params;
+  //   const { order_status } = ctx.request.body;
+
+  //   try {
+  //     // 1. Obtener la orden antes de actualizar
+  //     const order = await strapi.db.query('api::order.order').findOne({
+  //       where: { id: id }
+  //     });
+
+  //     if (!order) {
+  //       return ctx.notFound('Orden no encontrada');
+  //     }
+
+  //     // 2. Actualizar estado
+  //     await strapi.db.query('api::order.order').update({
+  //       where: { id: id },
+  //       data: { order_status }
+  //     });
+
+  //     // 3. Si pasa a "paid", descontar stock
+  //     if (order_status === 'paid' && order.items) {
+  //       console.log(`📦 Descontando stock para orden #${id}`);
+
+  //       for (const item of order.items) {
+  //         if (item.productId) {
+  //           const product = await strapi.db.query('api::product.product').findOne({
+  //             where: { id: item.productId }
+  //           });
+
+  //           if (product) {
+  //             const nuevoStock = Math.max(0, (product.stock || 0) - (item.quantity || 1));
+  //             await strapi.db.query('api::product.product').update({
+  //               where: { id: item.productId },
+  //               data: { stock: nuevoStock }
+  //             });
+  //             console.log(`  ✅ Producto #${item.productId}: stock ${product.stock} → ${nuevoStock}`);
+  //           }
+  //         }
+  //       }
+  //     }
+
+  //     return ctx.send({ ok: true, message: 'Orden actualizada' });
+  //   } catch (error) {
+  //     console.error('Error actualizando estado:', error);
+  //     return ctx.internalServerError('Error actualizando orden');
+  //   }
+  // }
+
   async updateStatus(ctx) {
     const { id } = ctx.params;
     const { order_status } = ctx.request.body;
 
     try {
+      const order = await strapi.db.query('api::order.order').findOne({
+        where: { id: id }
+      });
+
+      if (!order) return ctx.notFound('Orden no encontrada');
+
       await strapi.db.query('api::order.order').update({
         where: { id: id },
         data: { order_status }
       });
 
+      if (order_status === 'paid' && order.items) {
+        for (const item of order.items) {
+          const rawId = (item.productId || item.id).toString();
+          const baseId = rawId.split('-')[0];
+          
+          const product = await strapi.db.query('api::product.product').findOne({
+            where: { id: baseId },
+            populate: ['variants']
+          });
+
+          if (product) {
+            let dataToUpdate: any = {};
+            const quantity = item.quantity || 1;
+
+            if (rawId.includes('-') && product.variants?.length > 0) {
+              const colorVariant = rawId.split('-')[1];
+              dataToUpdate.variants = product.variants.map((v: any) => 
+                v.color.toLowerCase() === colorVariant.toLowerCase() 
+                ? { ...v, stock: Math.max(0, (v.stock || 0) - quantity) } 
+                : v
+              );
+            } else {
+              dataToUpdate.stock = Math.max(0, (product.stock || 0) - quantity);
+            }
+
+            await strapi.db.query('api::product.product').update({
+              where: { id: baseId },
+              data: dataToUpdate
+            });
+          }
+        }
+      }
       return ctx.send({ ok: true, message: 'Orden actualizada' });
     } catch (error) {
-      console.error('Error actualizando estado:', error);
       return ctx.internalServerError('Error actualizando orden');
     }
   }
