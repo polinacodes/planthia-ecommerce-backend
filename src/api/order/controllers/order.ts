@@ -7,19 +7,35 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
     try {
       const { email, first_name, last_name, phone, address, city, zip_code, cart, payment_method, subtotal, shipping_cost, discount_code, discount_amount, total } = ctx.request.body;
 
-      //  BUSCAR O CREAR USUARIO
+      // 1. BUSCAR USUARIO EXISTENTE
       let user = await strapi.db.query('plugin::users-permissions.user').findOne({
         where: { email: email.toLowerCase() }
       });
 
+      const userData = {
+        first_name,
+        last_name,
+        phone,
+        address,
+        city,
+        zip_code,
+        confirmed: true,
+      };
+
       if (!user) {
+        // 2. SI NO EXISTE, CREARLO CON TODOS LOS DATOS
+        console.log("Creando nuevo usuario para:", email);
         user = await strapi.plugins['users-permissions'].services.user.add({
+          ...userData,
           email: email.toLowerCase(),
           username: email.toLowerCase(),
           password: Math.random().toString(36).slice(-8),
-          confirmed: true,
           role: 1
         });
+      } else {
+        // 3. SI EXISTE, ACTUALIZAR SUS DATOS 
+        console.log("Actualizando datos del usuario existente:", email);
+        await strapi.plugins['users-permissions'].services.user.edit(user.id, userData);
       }
 
       // CREAR LA ORDEN
@@ -223,7 +239,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
         for (const item of order.items) {
           const rawId = (item.productId || item.id).toString();
           const baseId = rawId.split('-')[0];
-          
+
           const product = await strapi.db.query('api::product.product').findOne({
             where: { id: baseId },
             populate: ['variants']
@@ -235,10 +251,10 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
 
             if (rawId.includes('-') && product.variants?.length > 0) {
               const colorVariant = rawId.split('-')[1];
-              dataToUpdate.variants = product.variants.map((v: any) => 
-                v.color.toLowerCase() === colorVariant.toLowerCase() 
-                ? { ...v, stock: Math.max(0, (v.stock || 0) - quantity) } 
-                : v
+              dataToUpdate.variants = product.variants.map((v: any) =>
+                v.color.toLowerCase() === colorVariant.toLowerCase()
+                  ? { ...v, stock: Math.max(0, (v.stock || 0) - quantity) }
+                  : v
               );
             } else {
               dataToUpdate.stock = Math.max(0, (product.stock || 0) - quantity);
