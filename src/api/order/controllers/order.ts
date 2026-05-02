@@ -1,6 +1,9 @@
 // src/api/order/controllers/order.ts
 import { factories } from '@strapi/strapi';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
+import { Resend } from 'resend';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export default factories.createCoreController('api::order.order', ({ strapi }) => ({
   async createCheckout(ctx) {
@@ -153,122 +156,125 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
     return entity;
   },
 
-  // async updateStatus(ctx) {
-  //   const { id } = ctx.params;
-  //   const { order_status } = ctx.request.body;
-
-  //   try {
-  //     await strapi.db.query('api::order.order').update({
-  //       where: { id: id },
-  //       data: { order_status }
-  //     });
-
-  //     return ctx.send({ ok: true, message: 'Orden actualizada' });
-  //   } catch (error) {
-  //     console.error('Error actualizando estado:', error);
-  //     return ctx.internalServerError('Error actualizando orden');
-  //   }
-  // }
-
-  // async updateStatus(ctx) {
-  //   const { id } = ctx.params;
-  //   const { order_status } = ctx.request.body;
-
-  //   try {
-  //     // 1. Obtener la orden antes de actualizar
-  //     const order = await strapi.db.query('api::order.order').findOne({
-  //       where: { id: id }
-  //     });
-
-  //     if (!order) {
-  //       return ctx.notFound('Orden no encontrada');
-  //     }
-
-  //     // 2. Actualizar estado
-  //     await strapi.db.query('api::order.order').update({
-  //       where: { id: id },
-  //       data: { order_status }
-  //     });
-
-  //     // 3. Si pasa a "paid", descontar stock
-  //     if (order_status === 'paid' && order.items) {
-  //       console.log(`📦 Descontando stock para orden #${id}`);
-
-  //       for (const item of order.items) {
-  //         if (item.productId) {
-  //           const product = await strapi.db.query('api::product.product').findOne({
-  //             where: { id: item.productId }
-  //           });
-
-  //           if (product) {
-  //             const nuevoStock = Math.max(0, (product.stock || 0) - (item.quantity || 1));
-  //             await strapi.db.query('api::product.product').update({
-  //               where: { id: item.productId },
-  //               data: { stock: nuevoStock }
-  //             });
-  //             console.log(`  ✅ Producto #${item.productId}: stock ${product.stock} → ${nuevoStock}`);
-  //           }
-  //         }
-  //       }
-  //     }
-
-  //     return ctx.send({ ok: true, message: 'Orden actualizada' });
-  //   } catch (error) {
-  //     console.error('Error actualizando estado:', error);
-  //     return ctx.internalServerError('Error actualizando orden');
-  //   }
-  // }
-
   async updateStatus(ctx) {
     const { id } = ctx.params;
     const { order_status } = ctx.request.body;
 
     try {
+      // 1. Buscar la orden con el usuario populado
       const order = await strapi.db.query('api::order.order').findOne({
-        where: { id: id }
+        where: { id: id },
+        populate: ['user'] 
       });
 
       if (!order) return ctx.notFound('Orden no encontrada');
 
+      // 2. Actualizar estado de la orden
       await strapi.db.query('api::order.order').update({
         where: { id: id },
         data: { order_status }
       });
 
-      if (order_status === 'paid' && order.items) {
-        for (const item of order.items) {
-          const rawId = (item.productId || item.id).toString();
-          const baseId = rawId.split('-')[0];
+      // 3. SI EL PAGO ES EXITOSO
+      if (order_status === 'paid') {
+        
+        // --- LÓGICA DE STOCK (REVISAR) ---
+        if (order.items) {
+          for (const item of order.items) {
+            const rawId = (item.productId || item.id).toString();
+            const baseId = rawId.split('-')[0];
 
-          const product = await strapi.db.query('api::product.product').findOne({
-            where: { id: baseId },
-            populate: ['variants']
-          });
-
-          if (product) {
-            let dataToUpdate: any = {};
-            const quantity = item.quantity || 1;
-
-            if (rawId.includes('-') && product.variants?.length > 0) {
-              const colorVariant = rawId.split('-')[1];
-              dataToUpdate.variants = product.variants.map((v: any) =>
-                v.color.toLowerCase() === colorVariant.toLowerCase()
-                  ? { ...v, stock: Math.max(0, (v.stock || 0) - quantity) }
-                  : v
-              );
-            } else {
-              dataToUpdate.stock = Math.max(0, (product.stock || 0) - quantity);
-            }
-
-            await strapi.db.query('api::product.product').update({
+            const product = await strapi.db.query('api::product.product').findOne({
               where: { id: baseId },
-              data: dataToUpdate
+              populate: ['variants']
             });
+
+            if (product) {
+              let dataToUpdate: any = {};
+              const quantity = item.quantity || 1;
+
+              if (rawId.includes('-') && product.variants?.length > 0) {
+                const colorVariant = rawId.split('-')[1];
+                dataToUpdate.variants = product.variants.map((v: any) =>
+                  v.color.toLowerCase() === colorVariant.toLowerCase()
+                    ? { ...v, stock: Math.max(0, (v.stock || 0) - quantity) }
+                    : v
+                );
+              } else {
+                dataToUpdate.stock = Math.max(0, (product.stock || 0) - quantity);
+              }
+
+              await strapi.db.query('api::product.product').update({
+                where: { id: baseId },
+                // data: { dataToUpdate }
+                data: dataToUpdate
+              });
+            }
           }
         }
+
+        if (order.discount_code) {
+          try {
+            console.log(`🎟️ Intentando marcar cupón usado: ${order.discount_code}`);
+            
+            const newsletterEntry = await strapi.db.query('api::newsletter.newsletter').findOne({
+              where: { discount_code: order.discount_code }
+            });
+
+            if (newsletterEntry) {
+              await strapi.db.query('api::newsletter.newsletter').update({
+                where: { id: newsletterEntry.id },
+                data: { discount_used: true }
+              });
+              console.log(`✅ Cupón ${order.discount_code} marcado como usado.`);
+            }
+          } catch (couponError) {
+            console.error('❌ Error actualizando estado del cupón:', couponError);
+          }
+        }
+
+
+        // --- LÓGICA DE EMAIL DE BIENVENIDA ---
+        try {
+          const resetPasswordToken = await strapi.plugins['users-permissions'].services.jwt.issue({ 
+            id: order.user.id 
+          });
+          
+          const settingsUrl = `${process.env.FRONTEND_URL}/set-password?code=${resetPasswordToken}`;
+
+          console.log(`📧 Enviando mail de bienvenida a: ${order.customer_email}`);
+
+          await resend.emails.send({
+            from: 'Planthia <delivered@resend.dev>', // Cambiar esto por dominio validado cuando lo tenga
+            to: [order.customer_email],
+            subject: '🌱 ¡Bienvenido a Planthia! Configura tu cuenta',
+            html: `
+              <div style="font-family: sans-serif; max-width: 600px; color: #333;">
+                <h2>¡Gracias por tu compra, ${order.first_name}!</h2>
+                <p>Tu pedido <strong>#${id}</strong> está siendo procesado.</p>
+                <p>Para que puedas ver el historial de tus órdenes y gestionar tu perfil, hemos creado una cuenta para vos.</p>
+                <div style="margin: 30px 0;">
+                  <a href="${settingsUrl}" 
+                     style="background: #2D5A27; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                     Configurar mi contraseña
+                  </a>
+                </div>
+                <p style="font-size: 12px; color: #666;">
+                  Si el botón no funciona, copiá este link: <br> ${settingsUrl}
+                </p>
+              </div>
+            `,
+          });
+          
+          console.log('✅ Mail enviado con éxito');
+        } catch (emailError) {
+          console.error('❌ Error enviando mail de bienvenida:', emailError);
+        }
       }
+
       return ctx.send({ ok: true, message: 'Orden actualizada' });
     } catch (error) {
+      console.error('Error en updateStatus:', error);
       return ctx.internalServerError('Error actualizando orden');
     }
   }
