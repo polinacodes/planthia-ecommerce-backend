@@ -164,7 +164,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
       // 1. Buscar la orden con el usuario populado
       const order = await strapi.db.query('api::order.order').findOne({
         where: { id: id },
-        populate: ['user'] 
+        populate: ['user']
       });
 
       if (!order) return ctx.notFound('Orden no encontrada');
@@ -177,7 +177,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
 
       // 3. SI EL PAGO ES EXITOSO
       if (order_status === 'paid') {
-        
+
         // --- LÓGICA DE STOCK (REVISAR) ---
         if (order.items) {
           for (const item of order.items) {
@@ -216,7 +216,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
         if (order.discount_code) {
           try {
             console.log(`🎟️ Intentando marcar cupón usado: ${order.discount_code}`);
-            
+
             const newsletterEntry = await strapi.db.query('api::newsletter.newsletter').findOne({
               where: { discount_code: order.discount_code }
             });
@@ -233,43 +233,59 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
           }
         }
 
-
         // --- LÓGICA DE EMAIL DE BIENVENIDA ---
         try {
-          const resetPasswordToken = await strapi.plugins['users-permissions'].services.jwt.issue({ 
-            id: order.user.id 
+          // 1. Buscar el usuario para obtener sus datos completos
+          const userRecord = await strapi.db.query('plugin::users-permissions.user').findOne({
+            where: { id: order.user.id }
           });
-          
+
+          // 2. Generar un código de reseteo aleatorio
+          const crypto = require('crypto');
+          const resetPasswordToken = crypto.randomBytes(20).toString('hex');
+
+          // 3. Guardar el código en el usuario 
+          await strapi.db.query('plugin::users-permissions.user').update({
+            where: { id: order.user.id },
+            data: {
+              resetPasswordToken: resetPasswordToken
+            }
+          });
+
+          // 4. Crear la URL con el código 
           const settingsUrl = `${process.env.FRONTEND_URL}/set-password?code=${resetPasswordToken}`;
 
           console.log(`📧 Enviando mail de bienvenida a: ${order.customer_email}`);
+          console.log(`🔑 Código de reseteo generado: ${resetPasswordToken}`);
 
+          // 5. Enviar el email personalizado
           await resend.emails.send({
-            from: 'Planthia <delivered@resend.dev>', // Cambiar esto por dominio validado cuando lo tenga
+            from: 'Planthia <delivered@resend.dev>',
             to: [order.customer_email],
             subject: '🌱 ¡Bienvenido a Planthia! Configura tu cuenta',
             html: `
-              <div style="font-family: sans-serif; max-width: 600px; color: #333;">
-                <h2>¡Gracias por tu compra, ${order.first_name}!</h2>
-                <p>Tu pedido <strong>#${id}</strong> está siendo procesado.</p>
-                <p>Para que puedas ver el historial de tus órdenes y gestionar tu perfil, hemos creado una cuenta para vos.</p>
-                <div style="margin: 30px 0;">
-                  <a href="${settingsUrl}" 
-                     style="background: #2D5A27; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
-                     Configurar mi contraseña
-                  </a>
-                </div>
-                <p style="font-size: 12px; color: #666;">
-                  Si el botón no funciona, copiá este link: <br> ${settingsUrl}
-                </p>
-              </div>
-            `,
+      <div style="font-family: sans-serif; max-width: 600px; color: #333;">
+        <h2>¡Gracias por tu compra, ${order.first_name}!</h2>
+        <p>Tu pedido <strong>#${id}</strong> está siendo procesado.</p>
+        <p>Para que puedas ver el historial de tus órdenes y gestionar tu perfil, hemos creado una cuenta para vos.</p>
+        <div style="margin: 30px 0;">
+          <a href="${settingsUrl}" 
+             style="background: #2D5A27; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+             Configurar mi contraseña
+          </a>
+        </div>
+        <p style="font-size: 12px; color: #666;">
+          Si el botón no funciona, copiá este link: <br> ${settingsUrl}
+        </p>
+      </div>
+    `,
           });
-          
+
           console.log('✅ Mail enviado con éxito');
         } catch (emailError) {
           console.error('❌ Error enviando mail de bienvenida:', emailError);
         }
+
       }
 
       return ctx.send({ ok: true, message: 'Orden actualizada' });

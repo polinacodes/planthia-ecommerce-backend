@@ -1,3 +1,4 @@
+// src/api/auth/controllers/auth.ts
 export default {
   async customRegister(ctx) {
     const { email, password, nombre, apellido, telefono, direccion, ciudad, codigoPostal } = ctx.request.body;
