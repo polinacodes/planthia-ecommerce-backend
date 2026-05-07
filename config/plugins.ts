@@ -18,6 +18,17 @@ const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Plugin =>
         autoPurgeCache: true,
       },
     },
+
+    email: {
+      config: {
+        provider: 'sendmail', 
+        providerOptions: {},
+        settings: {
+          defaultFrom: 'Planthia <delivered@resend.dev>',
+          defaultReplyTo: 'delivered@resend.dev',
+        },
+      },
+    },
   };
 };
 

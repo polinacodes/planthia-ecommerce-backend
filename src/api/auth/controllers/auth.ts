@@ -50,4 +50,86 @@ export default {
       return ctx.internalServerError('❌ Error interno al crear el usuario');
     }
   },
+
+  async resetPasswordWithToken(ctx) {
+    const { code, password, passwordConfirmation } = ctx.request.body;
+
+    if (!code || !password || !passwordConfirmation) {
+      return ctx.badRequest('Faltan datos');
+    }
+
+    if (password !== passwordConfirmation) {
+      return ctx.badRequest('Las contraseñas no coinciden');
+    }
+
+    const user = await strapi.db.query('plugin::users-permissions.user').findOne({
+      where: { resetPasswordToken: code },
+    });
+
+    if (!user) {
+      return ctx.badRequest('Código inválido o expirado');
+    }
+
+    await strapi.plugin('users-permissions').service('user').edit(user.id, {
+      password,
+      resetPasswordToken: null,
+    });
+
+    const jwt = strapi.plugin('users-permissions').service('jwt').issue({
+      id: user.id,
+    });
+
+    return ctx.send({
+      jwt,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+      },
+    });
+  },
+  async customLogin(ctx) {
+  const { email, password } = ctx.request.body;
+
+  if (!email || !password) {
+    return ctx.badRequest('Email y contraseña requeridos');
+  }
+
+  // Buscar usuario
+  const user = await strapi.db.query('plugin::users-permissions.user').findOne({
+    where: { email: email.toLowerCase() },
+  });
+
+  if (!user) {
+    return ctx.badRequest('Usuario no encontrado');
+  }
+
+  // Verificar contraseña manualmente con bcrypt
+  const bcrypt = require('bcryptjs');
+  
+  // Si no tiene password 
+  if (!user.password) {
+    return ctx.badRequest('Usuario no tiene contraseña configurada');
+  }
+
+  const valid = await bcrypt.compare(password, user.password);
+
+  if (!valid) {
+    return ctx.badRequest('Contraseña incorrecta');
+  }
+
+  // Generar JWT
+  const jwt = strapi.plugin('users-permissions').service('jwt').issue({
+    id: user.id,
+  });
+
+  return ctx.send({
+    jwt,
+    user: {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+    },
+  });
+},
 };

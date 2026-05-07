@@ -22,6 +22,7 @@
     "@strapi/plugin-cloud": "^5.44.0",
     "@strapi/plugin-users-permissions": "^5.44.0",
     "@strapi/strapi": "^5.44.0",
+    "crypto": "^1.0.1",
     "mercadopago": "^2.12.0",
     "pg": "8.20.0",
     "react": "^18.0.0",
