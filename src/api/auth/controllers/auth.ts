@@ -25,7 +25,7 @@ export default {
         password: password,
         confirmed: true,
         blocked: false,
-        role: 1, // Rol "Authenticated"
+        role: 1, 
         nombre: nombre || '',
         apellido: apellido || '',
         telefono: telefono || '',
@@ -89,47 +89,101 @@ export default {
     });
   },
   async customLogin(ctx) {
-  const { email, password } = ctx.request.body;
+    const { email, password } = ctx.request.body;
 
-  if (!email || !password) {
-    return ctx.badRequest('Email y contraseña requeridos');
-  }
+    if (!email || !password) {
+      return ctx.badRequest('Email y contraseña requeridos');
+    }
 
-  // Buscar usuario
-  const user = await strapi.db.query('plugin::users-permissions.user').findOne({
-    where: { email: email.toLowerCase() },
-  });
+    // Buscar usuario
+    const user = await strapi.db.query('plugin::users-permissions.user').findOne({
+      where: { email: email.toLowerCase() },
+    });
 
-  if (!user) {
-    return ctx.badRequest('Usuario no encontrado');
-  }
+    if (!user) {
+      return ctx.badRequest('Usuario no encontrado');
+    }
 
-  // Verificar contraseña manualmente con bcrypt
-  const bcrypt = require('bcryptjs');
-  
-  // Si no tiene password 
-  if (!user.password) {
-    return ctx.badRequest('Usuario no tiene contraseña configurada');
-  }
+    // Verificar contraseña manualmente con bcrypt
+    const bcrypt = require('bcryptjs');
 
-  const valid = await bcrypt.compare(password, user.password);
+    // Si no tiene password 
+    if (!user.password) {
+      return ctx.badRequest('Usuario no tiene contraseña configurada');
+    }
 
-  if (!valid) {
-    return ctx.badRequest('Contraseña incorrecta');
-  }
+    const valid = await bcrypt.compare(password, user.password);
 
-  // Generar JWT
-  const jwt = strapi.plugin('users-permissions').service('jwt').issue({
-    id: user.id,
-  });
+    if (!valid) {
+      return ctx.badRequest('Contraseña incorrecta');
+    }
 
-  return ctx.send({
-    jwt,
-    user: {
+    // Generar JWT
+    const jwt = strapi.plugin('users-permissions').service('jwt').issue({
       id: user.id,
-      username: user.username,
-      email: user.email,
-    },
-  });
-},
+    });
+
+    return ctx.send({
+      jwt,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+      },
+    });
+  },
+  async customForgotPassword(ctx) {
+    const { email } = ctx.request.body;
+
+    if (!email) {
+      return ctx.badRequest('Email requerido');
+    }
+
+    const user = await strapi.db.query('plugin::users-permissions.user').findOne({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (!user) {
+      return ctx.send({ ok: true, message: 'Si el email existe, recibirás un código' });
+    }
+
+    const crypto = require('crypto');
+    const resetCode = crypto.randomBytes(20).toString('hex');
+
+    await strapi.db.query('plugin::users-permissions.user').update({
+      where: { id: user.id },
+      data: { resetPasswordToken: resetCode },
+    });
+
+    const resetUrl = `${process.env.FRONTEND_URL}/set-password?code=${resetCode}`;
+
+    const { Resend } = require('resend');
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
+    await resend.emails.send({
+      from: 'Planthia <delivered@resend.dev>',
+      to: [email],
+      subject: '🌱 Restablecé tu contraseña - Planthia',
+      html: `
+      <div style="font-family: sans-serif; max-width: 600px; color: #333;">
+        <h2>¿Olvidaste tu contraseña?</h2>
+        <p>Hacé clic en el botón para configurar una nueva:</p>
+        <div style="margin: 30px 0;">
+          <a href="${resetUrl}" 
+             style="background: #2D5A27; color: white; padding: 14px 30px; 
+                    text-decoration: none; border-radius: 8px; font-weight: bold;">
+             Restablecer contraseña
+          </a>
+        </div>
+        <p style="font-size: 12px; color: #666;">
+          O copiá este enlace: ${resetUrl}
+        </p>
+        <p style="font-size: 12px; color: #666;">Si no lo solicitaste, ignorá este mensaje.</p>
+      </div>
+    `,
+    });
+
+    console.log(`📧 Email de recuperación enviado a ${email}`);
+    return ctx.send({ ok: true });
+  },
 };

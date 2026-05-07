@@ -22,5 +22,11 @@ export default {
       handler: 'api::auth.auth.customLogin',
       config: { auth: false },
     },
+    {
+      method: 'POST',
+      path: '/auth/custom-forgot-password',
+      handler: 'api::auth.auth.customForgotPassword',
+      config: { auth: false },
+    },
   ],
 };
