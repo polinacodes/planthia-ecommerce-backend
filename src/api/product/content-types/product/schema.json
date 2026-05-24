@@ -54,6 +54,12 @@
       "type": "component",
       "component": "product.plant-metadata",
       "repeatable": false
+    },
+    "favorites": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::favorite.favorite",
+      "mappedBy": "product"
     }
   }
 }

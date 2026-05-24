@@ -89,6 +89,12 @@
     },
     "zip_code": {
       "type": "string"
+    },
+    "favorites": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::favorite.favorite",
+      "mappedBy": "user"
     }
   }
 }
