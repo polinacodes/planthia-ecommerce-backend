@@ -257,4 +257,24 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
     if (!entity) return ctx.notFound('Orden no encontrada');
     return ctx.send({ data: entity });
   },
+
+  async myOrders(ctx) {
+    const user = ctx.state.user;
+
+    if (!user) {
+      return ctx.unauthorized('Debes iniciar sesión');
+    }
+
+    const orders = await strapi.entityService.findMany('api::order.order', {
+      filters: {
+        user: {
+          id: user.id
+        }
+      },
+      populate: '*',
+      sort: { createdAt: 'desc' },
+    });
+
+    return { data: orders };
+  },
 }));
