@@ -101,11 +101,9 @@ export default {
       path: '/orders/checkout',
       handler: 'order.createCheckout',
       config: {
-        auth: false, 
+        auth: false,
       },
     },
-
-
     // RUTAS PROTEGIDAS - SOLO USUARIOS AUTENTICADOS CON PERMISOS
     {
       method: 'GET',
@@ -172,9 +170,7 @@ export default {
       path: '/orders/:id/status',
       handler: 'order.updateStatus',
       config: {
-        auth: {
-          scope: ['api::order.order.update']
-        }
+        auth: false,
       },
     },
   ],
