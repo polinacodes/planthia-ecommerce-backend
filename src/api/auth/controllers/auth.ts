@@ -161,27 +161,17 @@ export default {
     const resend = new Resend(process.env.RESEND_API_KEY);
 
     await resend.emails.send({
-      from: 'Planthia <delivered@resend.dev>',
+      from: 'Planthia <noreply@polinacodes.dev>',
       to: [email],
-      subject: '🌱 Restablecé tu contraseña - Planthia',
-      html: `
-      <div style="font-family: sans-serif; max-width: 600px; color: #333;">
-        <h2>¿Olvidaste tu contraseña?</h2>
-        <p>Hacé clic en el botón para configurar una nueva:</p>
-        <div style="margin: 30px 0;">
-          <a href="${resetUrl}" 
-             style="background: #2D5A27; color: white; padding: 14px 30px; 
-                    text-decoration: none; border-radius: 8px; font-weight: bold;">
-             Restablecer contraseña
-          </a>
-        </div>
-        <p style="font-size: 12px; color: #666;">
-          O copiá este enlace: ${resetUrl}
-        </p>
-        <p style="font-size: 12px; color: #666;">Si no lo solicitaste, ignorá este mensaje.</p>
-      </div>
-    `,
-    });
+      subject: 'Restablecé tu contraseña - Planthia',
+      template: {
+          id: 'password-reset-1',
+          variables: {
+            firstName: user.first_name || 'cliente',
+            resetUrl: resetUrl,
+          },
+        },
+      });
 
     console.log(`📧 Email de recuperación enviado a ${email}`);
     return ctx.send({ ok: true });

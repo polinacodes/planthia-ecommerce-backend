@@ -211,27 +211,17 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
           const resetUrl = `${process.env.FRONTEND_URL}/set-password?code=${resetCode}`;
 
           await resend.emails.send({
-            from: 'Planthia <delivered@resend.dev>',
+            from: 'Planthia <noreply@polinacodes.dev>',
             to: [order.customer_email],
-            subject: '🌱 ¡Bienvenido a Planthia! Configurá tu contraseña',
-            html: `
-              <div style="font-family: sans-serif; max-width: 600px; color: #333;">
-                <h2>¡Gracias por tu compra, ${order.first_name || 'cliente'}!</h2>
-                <p>Tu pedido <strong>#${id}</strong> está siendo procesado.</p>
-                <p>Para acceder a tu cuenta y ver tus pedidos, configurá tu contraseña:</p>
-                <div style="margin: 30px 0;">
-                  <a href="${resetUrl}" 
-                     style="background: #2D5A27; color: white; padding: 14px 30px; 
-                            text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
-                     Configurar mi contraseña
-                  </a>
-                </div>
-                <p style="font-size: 12px; color: #666;">
-                  Si el botón no funciona, copiá y pegá este enlace:<br>
-                  ${resetUrl}
-                </p>
-              </div>
-            `,
+            subject: '¡Gracias por tu compra! Configurá tu contraseña',
+            template: {
+              id: 'confirmacion-compra-nuevo-cliente',
+              variables: {
+                firstName: order.first_name || 'cliente',
+                orderId: id,
+                resetUrl: resetUrl
+              }
+            }
           });
 
           console.log(`✅ Email enviado a ${order.customer_email}`);

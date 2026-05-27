@@ -47,20 +47,15 @@ export default factories.createCoreController('api::newsletter.newsletter', ({ s
     
     try {
       const { data, error } = await resend.emails.send({
-        from: 'Resend <delivered@resend.dev>',
+        from: 'Planthia <noreply@polinacodes.dev>',
         to: [email],
         subject: '🎁 Bienvenida a Planthia - Tu código de descuento',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px;">
-            <h2>¡Gracias por suscribirte! 🌱</h2>
-            <p>Tu código de descuento del 10% es:</p>
-            <div style="background: #f0f0f0; padding: 15px; text-align: center; margin: 20px 0;">
-              <code style="font-size: 24px; letter-spacing: 2px;">${discountCode}</code>
-            </div>
-            <p>Usá este código en el checkout.</p>
-            <p>¡Gracias por confiar en Planthia!</p>
-          </div>
-        `,
+        template: {
+          id: 'bienvenida-planthia',
+          variables: {
+            discountCode: discountCode, 
+          },
+        },
       });
 
       if (error) {
@@ -87,7 +82,7 @@ export default factories.createCoreController('api::newsletter.newsletter', ({ s
     });
   },
 
-  // 👇 AGREGÁ ESTO (el nuevo método para validar cupones)
+ 
   async validateDiscount(ctx) {
     const { code } = ctx.request.body;
 
