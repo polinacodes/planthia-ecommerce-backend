@@ -384,7 +384,13 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
           body: preferenceData
         });
 
-        return ctx.send({ ok: true, orderId: order.id, mercadoPagoUrl: response.init_point });
+        // return ctx.send({ ok: true, orderId: order.id, mercadoPagoUrl: response.init_point });
+
+        const mpUrl = process.env.NODE_ENV === 'production'
+          ? response.init_point
+          : response.sandbox_init_point;
+
+        return ctx.send({ ok: true, orderId: order.id, mercadoPagoUrl: mpUrl });
       }
 
       if (payment_method === 'paypal') {
