@@ -49,7 +49,7 @@ export default factories.createCoreController('api::newsletter.newsletter', ({ s
       const { data, error } = await resend.emails.send({
         from: 'Planthia <noreply@polinacodes.dev>',
         to: [email],
-        subject: '🎁 Bienvenida a Planthia - Tu código de descuento',
+        subject: 'Bienvenida a Planthia - ¡Te enviamos un regalo!',
         template: {
           id: 'bienvenida-planthia',
           variables: {

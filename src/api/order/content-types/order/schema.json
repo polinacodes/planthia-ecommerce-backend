@@ -71,6 +71,9 @@
     },
     "discount_amount": {
       "type": "decimal"
+    },
+    "is_new_user": {
+      "type": "boolean"
     }
   }
 }

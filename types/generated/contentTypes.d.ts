@@ -551,6 +551,7 @@ export interface ApiOrderOrder extends Struct.CollectionTypeSchema {
     discount_amount: Schema.Attribute.Decimal;
     discount_code: Schema.Attribute.String;
     first_name: Schema.Attribute.String;
+    is_new_user: Schema.Attribute.Boolean;
     items: Schema.Attribute.JSON;
     last_name: Schema.Attribute.String;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
