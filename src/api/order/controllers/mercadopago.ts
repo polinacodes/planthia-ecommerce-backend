@@ -1,475 +1,113 @@
-// // src/api/order/controllers/mercadopago.ts
-// import { MercadoPagoConfig, Payment } from 'mercadopago';
-// import * as crypto from 'crypto';
-
-// export default {
-//   async webhook(ctx) {
-//     try {
-//       console.log("--- WEBHOOK RECIBIDO ---");
-//       console.log("Body:", JSON.stringify(ctx.request.body));
-
-//       // Validación de firma (flexible para desarrollo)
-//       const signature = ctx.request.headers['x-signature'] as string;
-//       const requestId = ctx.request.headers['x-request-id'] as string;
-//       const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
-
-//       if (secret && signature && requestId) {
-//         try {
-//           const parts = signature.split(',');
-//           const ts = parts.find(part => part.startsWith('ts='))?.split('=')[1];
-//           const v1 = parts.find(part => part.startsWith('v1='))?.split('=')[1];
-//           const manifest = `id:${ctx.request.body.data?.id};request-id:${requestId};ts:${ts};`;
-//           const hmac = crypto.createHmac('sha256', secret).update(manifest).digest('hex');
-
-//           if (hmac !== v1) {
-//             console.error('❌ Firma inválida');
-//             if (process.env.NODE_ENV === 'production') {
-//               return ctx.forbidden('Firma inválida');
-//             }
-//           } else {
-//             console.log('✅ Firma verificada');
-//           }
-//         } catch (err) {
-//           console.error('Error validando firma:', err);
-//         }
-//       } else {
-//         console.log('⚠️ Webhook sin firma - normal en desarrollo');
-//       }
-
-//       const { body } = ctx.request;
-//       const paymentId = body.data?.id;
-
-//       if (body.type === 'payment' && paymentId) {
-//         const client = new MercadoPagoConfig({
-//           accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || ''
-//         });
-//         const payment = new Payment(client);
-//         const paymentDetails = await payment.get({ id: paymentId });
-//         const orderId = paymentDetails.external_reference;
-
-//         if (!orderId) {
-//           console.error('❌ No se encontró external_reference');
-//           return ctx.badRequest('Referencia no encontrada');
-//         }
-
-//         let newStatus = 'pending';
-//         if (paymentDetails.status === 'approved') {
-//           newStatus = 'paid';
-//         } else if (['rejected', 'cancelled', 'voided'].includes(paymentDetails.status)) {
-//           newStatus = 'failure';
-//         }
-
-//         console.log(`Actualizando orden ${orderId} a estado: ${newStatus}`);
-
-//         // Actualizar orden
-//         //       const orderUpdated = await strapi.db.query('api::order.order').update({
-//         //         where: { id: orderId },
-//         //         data: {
-//         //           order_status: newStatus,
-//         //           payment_id: paymentId.toString()
-//         //         },
-//         //       });
-
-//         //       console.log('✅ Orden actualizada:', orderUpdated);
-
-//         //       if (newStatus === 'paid' && orderUpdated?.items) {
-//         //         console.log('📦 Descontando stock...');
-//         //         for (const item of orderUpdated.items) {
-//         //           if (item.productId) {
-//         //             const product = await strapi.db.query('api::product.product').findOne({
-//         //               where: { id: item.productId }
-//         //             });
-
-//         //             if (product) {
-//         //               const nuevoStock = Math.max(0, (product.stock || 0) - (item.quantity || 1));
-//         //               await strapi.db.query('api::product.product').update({
-//         //                 where: { id: item.productId },
-//         //                 data: { stock: nuevoStock }
-//         //               });
-//         //               console.log(`  ✅ Producto #${item.productId}: stock ${product.stock} → ${nuevoStock}`);
-//         //             }
-//         //           }
-//         //         }
-//         //       }
-//         //     }
-
-//         //     return ctx.send({ ok: true });
-//         //   } catch (err) {
-//         //     console.error('❌ Error en webhook:', err);
-//         //     return ctx.internalServerError('Error procesando webhook');
-//         //   }
-//         // }
-
-//         const orderUpdated = await strapi.db.query('api::order.order').update({
-//           where: { id: orderId },
-//           data: {
-//             order_status: newStatus,
-//             payment_id: paymentId.toString()
-//           },
-//         });
-
-//         console.log('✅ Orden actualizada:', orderUpdated.id);
-
-//         // --- NUEVA LÓGICA DE STOCK PARA VARIANTES ---
-//         // if (newStatus === 'paid' && orderUpdated?.items) {
-//         //   console.log('📦 Descontando stock...');
-//         //   for (const item of orderUpdated.items) {
-//         //     const rawId = (item.productId || item.id).toString();
-//         //     const baseId = rawId.split('-')[0];
-
-//         //     const product = await strapi.db.query('api::product.product').findOne({
-//         //       where: { id: baseId },
-//         //       populate: ['variants'] 
-//         //     });
-
-//         //     if (product) {
-//         //       let dataToUpdate: any = {};
-//         //       const quantity = item.quantity || 1;
-
-//         //       // Si es variante (contiene '-') y tiene el componente variants
-//         //       if (rawId.includes('-') && product.variants?.length > 0) {
-//         //         const colorVariant = rawId.split('-')[1];
-//         //         dataToUpdate.variants = product.variants.map((v: any) => 
-//         //           v.color.toLowerCase() === colorVariant.toLowerCase() 
-//         //           ? { ...v, stock: Math.max(0, (v.stock || 0) - quantity) } 
-//         //           : v
-//         //         );
-//         //       } else {
-//         //         // Stock simple
-//         //         dataToUpdate.stock = Math.max(0, (product.stock || 0) - quantity);
-//         //       }
-
-//         //       await strapi.db.query('api::product.product').update({
-//         //         where: { id: baseId },
-//         //         data: dataToUpdate
-//         //       });
-//         //       console.log(`✅ Producto #${baseId} stock actualizado.`);
-//         //     }
-//         //   }
-//         // }
-
-
-//         if (newStatus === 'paid' && orderUpdated?.items) {
-//           console.log('📦 Iniciando proceso de stock para Planthia...');
-
-//           for (const item of orderUpdated.items) {
-      
-//             const rawId = (item.productId || item.id).toString();
-//             const baseId = rawId.split('-')[0];
-//             const quantity = Number(item.quantity) || 1;
-
-//             console.log(`🔍 Buscando producto ID: ${baseId} para restar ${quantity} unidades`);
-
-//             const product = await strapi.db.query('api::product.product').findOne({
-           
-//               where: { id: Number(baseId) },
-//               populate: ['variants']
-//             });
-
-//             if (product) {
-//               let dataToUpdate: any = {};
-
-//               if (rawId.includes('-') && product.variants?.length > 0) {
-//                 // Lógica de variantes (ej: 131-rojo)
-//                 const colorVariant = rawId.split('-')[1];
-//                 dataToUpdate.variants = product.variants.map((v: any) =>
-//                   v.color.toLowerCase() === colorVariant.toLowerCase()
-//                     ? { ...v, stock: Math.max(0, (Number(v.stock) || 0) - quantity) }
-//                     : v
-//                 );
-//               } else {
-//                 // Producto simple 
-//                 const currentStock = Number(product.stock) || 0;
-//                 dataToUpdate.stock = Math.max(0, currentStock - quantity);
-//                 console.log(`📉 Stock anterior: ${currentStock} | Nuevo stock: ${dataToUpdate.stock}`);
-//               }
-
-//               await strapi.db.query('api::product.product').update({
-//                 where: { id: Number(baseId) },
-//                 data: dataToUpdate
-//               });
-
-//               console.log(`✅ Producto #${baseId} actualizado correctamente.`);
-//             } else {
-//               console.error(`❌ No se encontró el producto con ID ${baseId} en la base de datos.`);
-//             }
-//           }
-//         }
-//       }
-
-//       return ctx.send({ ok: true });
-//     } catch (err) {
-//       console.error('❌ Error en webhook:', err);
-//       return ctx.internalServerError('Error procesando webhook');
-//     }
-//   }
-// };
-
-
-// import { MercadoPagoConfig, Payment } from 'mercadopago';
-// import * as crypto from 'crypto';
-
-// export default {
-//   async webhook(ctx) {
-//     try {
-//       console.log("--- WEBHOOK RECIBIDO ---");
-//       console.log("Body:", JSON.stringify(ctx.request.body));
-
-//       // Validación de firma
-//       const signature = ctx.request.headers['x-signature'] as string;
-//       const requestId = ctx.request.headers['x-request-id'] as string;
-//       const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
-
-//       if (secret && signature && requestId) {
-//         try {
-//           const parts = signature.split(',');
-//           const ts = parts.find(part => part.startsWith('ts='))?.split('=')[1];
-//           const v1 = parts.find(part => part.startsWith('v1='))?.split('=')[1];
-//           const manifest = `id:${ctx.request.body.data?.id};request-id:${requestId};ts:${ts};`;
-//           const hmac = crypto.createHmac('sha256', secret).update(manifest).digest('hex');
-
-//           if (hmac !== v1) {
-//             console.error('❌ Firma inválida');
-//             if (process.env.NODE_ENV === 'production') {
-//               return ctx.forbidden('Firma inválida');
-//             }
-//           } else {
-//             console.log('✅ Firma verificada');
-//           }
-//         } catch (err) {
-//           console.error('Error validando firma:', err);
-//         }
-//       }
-
-//       const { body } = ctx.request;
-//       const paymentId = body.data?.id;
-
-//       if (body.type === 'payment' && paymentId) {
-//         const client = new MercadoPagoConfig({
-//           accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || ''
-//         });
-//         const payment = new Payment(client);
-        
-//         let paymentDetails;
-        
-//         // === ACÁ ESTÁ EL CAMBIO CLAVE ===
-//         try {
-//           paymentDetails = await payment.get({ id: paymentId });
-//         } catch (error: any) {
-//           console.error('⚠️ Error al consultar el pago en Mercado Pago:', error.message || error);
-          
-//           // Si el ID es el del simulador (123456) o da 404, respondemos 200 para que no falle la prueba
-//           if (paymentId === '123456' || error.status === 404) {
-//             console.log('🤖 Simulación de Mercado Pago detectada. Respondiendo 200 OK.');
-//             ctx.status = 200;
-//             return ctx.send({ ok: true, message: 'Simulación exitosa' });
-//           }
-          
-//           return ctx.internalServerError('Error al obtener detalles del pago');
-//         }
-
-//         const orderId = paymentDetails.external_reference;
-
-//         if (!orderId) {
-//           console.error('❌ No se encontró external_reference');
-//           return ctx.badRequest('Referencia no encontrada');
-//         }
-
-//         let newStatus = 'pending';
-//         if (paymentDetails.status === 'approved') {
-//           newStatus = 'paid';
-//         } else if (['rejected', 'cancelled', 'voided'].includes(paymentDetails.status)) {
-//           newStatus = 'failure';
-//         }
-
-//         console.log(`Actualizando orden ${orderId} a estado: ${newStatus}`);
-
-//         const orderUpdated = await strapi.db.query('api::order.order').update({
-//           where: { id: orderId },
-//           data: {
-//             order_status: newStatus,
-//             payment_id: paymentId.toString()
-//           },
-//         });
-
-//         console.log('✅ Orden actualizada:', orderUpdated.id);
-
-//         // Lógica de Stock
-//         if (newStatus === 'paid' && orderUpdated?.items) {
-//           console.log('📦 Iniciando proceso de stock para Planthia...');
-//           for (const item of orderUpdated.items) {
-//             const rawId = (item.productId || item.id).toString();
-//             const baseId = rawId.split('-')[0];
-//             const quantity = Number(item.quantity) || 1;
-
-//             const product = await strapi.db.query('api::product.product').findOne({
-//               where: { id: Number(baseId) },
-//               populate: ['variants']
-//             });
-
-//             if (product) {
-//               let dataToUpdate: any = {};
-//               if (rawId.includes('-') && product.variants?.length > 0) {
-//                 const colorVariant = rawId.split('-')[1];
-//                 dataToUpdate.variants = product.variants.map((v: any) =>
-//                   v.color.toLowerCase() === colorVariant.toLowerCase()
-//                     ? { ...v, stock: Math.max(0, (Number(v.stock) || 0) - quantity) }
-//                     : v
-//                 );
-//               } else {
-//                 const currentStock = Number(product.stock) || 0;
-//                 dataToUpdate.stock = Math.max(0, currentStock - quantity);
-//               }
-
-//               await strapi.db.query('api::product.product').update({
-//                 where: { id: Number(baseId) },
-//                 data: dataToUpdate
-//               });
-//               console.log(`✅ Producto #${baseId} actualizado correctamente.`);
-//             }
-//           }
-//         }
-//       }
-
-//       ctx.status = 200;
-//       return ctx.send({ ok: true });
-//     } catch (err) {
-//       console.error('❌ Error crítico en webhook:', err);
-//       return ctx.internalServerError('Error procesando webhook');
-//     }
-//   }
-// };
-
-
+// src/api/order/controllers/mercadopago.ts
 import { MercadoPagoConfig, Payment } from 'mercadopago';
-import * as crypto from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
+
+/**
+ * Valida la firma x-signature que manda Mercado Pago.
+ * Formato del manifest según la documentación de MP:
+ *   id:[data.id];request-id:[x-request-id];ts:[ts];
+ * data.id sale del query string (?data.id=...) y va en minúsculas si es alfanumérico.
+ */
+function isValidSignature(ctx, secret: string): boolean {
+  const signature = ctx.request.headers['x-signature'] as string | undefined;
+  const requestId = ctx.request.headers['x-request-id'] as string | undefined;
+  if (!signature) return false;
+
+  const parts = Object.fromEntries(
+    signature.split(',').map((part) => {
+      const [key, ...rest] = part.trim().split('=');
+      return [key, rest.join('=')];
+    })
+  );
+  const ts = parts.ts;
+  const v1 = parts.v1;
+  if (!ts || !v1) return false;
+
+  const rawId = ctx.query?.['data.id'] ?? ctx.request.body?.data?.id;
+  const dataId = rawId !== undefined ? String(rawId).toLowerCase() : '';
+
+  let manifest = '';
+  if (dataId) manifest += `id:${dataId};`;
+  if (requestId) manifest += `request-id:${requestId};`;
+  manifest += `ts:${ts};`;
+
+  const expected = createHmac('sha256', secret).update(manifest).digest('hex');
+
+  const a = Buffer.from(expected);
+  const b = Buffer.from(v1);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 export default {
   async webhook(ctx) {
-    try {
-      console.log("--- WEBHOOK RECIBIDO ---");
-      console.log("Body:", JSON.stringify(ctx.request.body));
+    const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+    const isProduction = process.env.NODE_ENV === 'production';
 
-      // Validación de firma
-      const signature = ctx.request.headers['x-signature'] as string;
-      const requestId = ctx.request.headers['x-request-id'] as string;
-      const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
-
-      if (secret && signature && requestId) {
-        try {
-          const parts = signature.split(',');
-          const ts = parts.find(part => part.startsWith('ts='))?.split('=')[1];
-          const v1 = parts.find(part => part.startsWith('v1='))?.split('=')[1];
-          const manifest = `id:${ctx.request.body.data?.id};request-id:${requestId};ts:${ts};`;
-          const hmac = crypto.createHmac('sha256', secret).update(manifest).digest('hex');
-
-          if (hmac !== v1) {
-            console.error('❌ Firma inválida');
-            if (process.env.NODE_ENV === 'production') {
-              return ctx.forbidden('Firma inválida');
-            }
-          } else {
-            console.log('✅ Firma verificada');
-          }
-        } catch (err) {
-          console.error('Error validando firma:', err);
-        }
+    if (secret) {
+      if (!isValidSignature(ctx, secret)) {
+        strapi.log.warn('[mercadopago] Webhook con firma inválida, se ignora');
+        return ctx.unauthorized('Firma inválida');
       }
-
-      const { body } = ctx.request;
-      const paymentId = body.data?.id;
-
-      if (body.type === 'payment' && paymentId) {
-        const client = new MercadoPagoConfig({
-          accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || ''
-        });
-        const payment = new Payment(client);
-        
-        let paymentDetails;
-        
-        try {
-          paymentDetails = await payment.get({ id: paymentId });
-        } catch (error: any) {
-          console.error('⚠️ Error al consultar el pago en Mercado Pago:', error.message || error);
-          
-          // Si el ID es el del simulador o da un 404, salvamos las papas devolviendo 200 OK
-          if (paymentId === 123456 || paymentId === '123456' || error.status === 404 || error.statusCode === 404) {
-            console.log('🤖 Simulación de Mercado Pago detectada de forma segura. Respondiendo 200 OK.');
-            ctx.status = 200;
-            return ctx.send({ ok: true, message: 'Simulación exitosa' });
-          }
-          
-          return ctx.internalServerError('Error al obtener detalles del pago');
-        }
-
-        const orderId = paymentDetails.external_reference;
-
-        if (!orderId) {
-          console.error('❌ No se encontró external_reference');
-          return ctx.badRequest('Referencia no encontrada');
-        }
-
-        let newStatus = 'pending';
-        if (paymentDetails.status === 'approved') {
-          newStatus = 'paid';
-        } else if (['rejected', 'cancelled', 'voided'].includes(paymentDetails.status)) {
-          newStatus = 'failure';
-        }
-
-        console.log(`Actualizando orden ${orderId} a estado: ${newStatus}`);
-
-        const orderUpdated = await strapi.db.query('api::order.order').update({
-          where: { id: orderId },
-          data: {
-            order_status: newStatus,
-            payment_id: paymentId.toString()
-          },
-        });
-
-        console.log('✅ Orden actualizada:', orderUpdated.id);
-
-        // Lógica de Stock
-        if (newStatus === 'paid' && orderUpdated?.items) {
-          console.log('📦 Iniciando proceso de stock para Planthia...');
-          for (const item of orderUpdated.items) {
-            const rawId = (item.productId || item.id).toString();
-            const baseId = rawId.split('-')[0];
-            const quantity = Number(item.quantity) || 1;
-
-            const product = await strapi.db.query('api::product.product').findOne({
-              where: { id: Number(baseId) },
-              populate: ['variants']
-            });
-
-            if (product) {
-              let dataToUpdate: any = {};
-              if (rawId.includes('-') && product.variants?.length > 0) {
-                const colorVariant = rawId.split('-')[1];
-                dataToUpdate.variants = product.variants.map((v: any) =>
-                  v.color.toLowerCase() === colorVariant.toLowerCase()
-                    ? { ...v, stock: Math.max(0, (Number(v.stock) || 0) - quantity) }
-                    : v
-                );
-              } else {
-                const currentStock = Number(product.stock) || 0;
-                dataToUpdate.stock = Math.max(0, currentStock - quantity);
-              }
-
-              await strapi.db.query('api::product.product').update({
-                where: { id: Number(baseId) },
-                data: dataToUpdate
-              });
-              console.log(`✅ Producto #${baseId} actualizado correctamente.`);
-            }
-          }
-        }
-      }
-
-      ctx.status = 200;
-      return ctx.send({ ok: true });
-    } catch (err) {
-      console.error('❌ Error crítico en webhook:', err);
-      return ctx.internalServerError('Error procesando webhook');
+    } else if (isProduction) {
+      strapi.log.error('[mercadopago] Falta MERCADOPAGO_WEBHOOK_SECRET en producción');
+      return ctx.unauthorized('Webhook no configurado');
     }
-  }
+
+    const body = ctx.request.body || {};
+    const type = body.type ?? ctx.query?.type;
+    const paymentId = body.data?.id ?? ctx.query?.['data.id'];
+
+    // Otros avisos (merchant_order, etc.) no nos interesan
+    if (type !== 'payment' || !paymentId) {
+      return ctx.send({ ok: true });
+    }
+
+    const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || '' });
+
+    let payment: any;
+    try {
+      payment = await new Payment(client).get({ id: paymentId });
+    } catch (error: any) {
+      // La "simulación" del panel de MP manda un id que no existe (ej: 123456)
+      if (error?.status === 404 || error?.statusCode === 404) {
+        strapi.log.info(`[mercadopago] Pago ${paymentId} no encontrado (simulación del panel), respondo 200`);
+        return ctx.send({ ok: true });
+      }
+      strapi.log.error(`[mercadopago] Error consultando el pago ${paymentId}: ${error?.message || error}`);
+      return ctx.internalServerError('Error al obtener el pago');
+    }
+
+    const orderId = Number(payment.external_reference);
+    if (!Number.isInteger(orderId)) {
+      strapi.log.warn(`[mercadopago] Pago ${paymentId} sin external_reference válido`);
+      return ctx.send({ ok: true });
+    }
+
+    const order: any = await strapi.db.query('api::order.order').findOne({ where: { id: orderId } });
+    if (!order || order.payment_method !== 'mercadopago') {
+      strapi.log.warn(`[mercadopago] Pago ${paymentId} apunta a un pedido inexistente (${orderId})`);
+      return ctx.send({ ok: true });
+    }
+
+    if (payment.status === 'approved') {
+      // El monto cobrado tiene que coincidir con el total del pedido
+      const paid = Number(payment.transaction_amount) || 0;
+      const expected = Number(order.total) || 0;
+      if (Math.abs(paid - expected) > 1) {
+        strapi.log.error(
+          `[mercadopago] Monto distinto en el pedido ${orderId}: cobrado ${paid}, esperado ${expected}. No se marca como pagado.`
+        );
+        return ctx.send({ ok: true });
+      }
+
+      await strapi.service('api::order.order').markOrderPaid(orderId, { paymentId: String(paymentId) });
+    } else if (['rejected', 'cancelled'].includes(payment.status) && order.order_status === 'pending') {
+      await strapi.db.query('api::order.order').update({
+        where: { id: orderId },
+        data: { order_status: 'failure', payment_id: String(paymentId) },
+      });
+    }
+
+    return ctx.send({ ok: true });
+  },
 };
