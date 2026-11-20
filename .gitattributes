@@ -1,0 +1,10 @@
+# Siempre LF en el repo y en la copia local, también en Windows.
+# Strapi y npm escriben LF: así Git no marca como modificados
+# types/generated ni package-lock.json cuando no cambió nada.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
