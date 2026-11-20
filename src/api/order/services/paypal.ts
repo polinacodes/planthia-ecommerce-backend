@@ -138,6 +138,12 @@ export default () => ({
     return { completed, captureId: captureInfo?.id };
   },
 
+  /** Estado de una orden en PayPal (CREATED, APPROVED, COMPLETED, ...). */
+  async getOrderStatus(paypalOrderId: string): Promise<string | null> {
+    const { ok, body } = await paypalFetch(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}`);
+    return ok ? body?.status ?? null : null;
+  },
+
   /** Verifica con PayPal que el webhook sea auténtico. */
   async verifyWebhookSignature(headers: Record<string, any>, event: any): Promise<boolean> {
     const webhookId = process.env.PAYPAL_WEBHOOK_ID;

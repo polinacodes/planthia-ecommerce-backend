@@ -84,39 +84,7 @@ export default {
       return ctx.internalServerError('Error al obtener el pago');
     }
 
-    const orderId = Number(payment.external_reference);
-    if (!Number.isInteger(orderId)) {
-      strapi.log.warn(`[mercadopago] Pago ${paymentId} sin external_reference válido`);
-      return ctx.send({ ok: true });
-    }
-
-    const order: any = await strapi.db.query('api::order.order').findOne({ where: { id: orderId } });
-    if (!order || order.payment_method !== 'mercadopago') {
-      strapi.log.warn(`[mercadopago] Pago ${paymentId} apunta a un pedido inexistente (${orderId})`);
-      return ctx.send({ ok: true });
-    }
-
-    if (payment.status === 'approved') {
-      // El monto cobrado tiene que coincidir con el total del pedido
-      // Según cómo informe MP el envío, puede venir dentro o aparte del monto
-      const amount = Number(payment.transaction_amount) || 0;
-      const shipping = Number(payment.shipping_amount) || 0;
-      const expected = Number(order.total) || 0;
-      const paid = Math.abs(amount - expected) <= 1 ? amount : amount + shipping;
-      if (Math.abs(paid - expected) > 1) {
-        strapi.log.error(
-          `[mercadopago] Monto distinto en el pedido ${orderId}: cobrado ${paid}, esperado ${expected}. No se marca como pagado.`
-        );
-        return ctx.send({ ok: true });
-      }
-
-      await strapi.service('api::order.order').markOrderPaid(orderId, { paymentId: String(paymentId) });
-    } else if (['rejected', 'cancelled'].includes(payment.status) && order.order_status === 'pending') {
-      await strapi.db.query('api::order.order').update({
-        where: { id: orderId },
-        data: { order_status: 'failure', payment_id: String(paymentId) },
-      });
-    }
+    await strapi.service('api::order.order').processMercadoPagoPayment(payment);
 
     return ctx.send({ ok: true });
   },

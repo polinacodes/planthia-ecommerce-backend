@@ -8,6 +8,7 @@
 import { factories } from '@strapi/strapi';
 import { Resend } from 'resend';
 import { randomBytes } from 'crypto';
+import { MercadoPagoConfig, Payment } from 'mercadopago';
 
 // Reglas de envío (antes estaban solo en el front)
 export const FREE_SHIPPING_FROM = 10000;
@@ -21,6 +22,37 @@ const VARIANT_UID = 'product.variant';
 const NEWSLETTER_UID = 'api::newsletter.newsletter';
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
+
+// Pasado este tiempo, un pedido que sigue pendiente se considera abandonado
+const RECONCILE_WINDOW_MS = 3 * 24 * 60 * 60 * 1000; // 3 días
+
+/**
+ * Si el producto tiene variantes, su stock general pasa a ser la suma del
+ * stock de las variantes. Se usa desde el lifecycle del producto y al
+ * descontar stock en una compra.
+ */
+export async function syncVariantStock(productRowId: number) {
+  const row: any = await strapi.db.query(PRODUCT_UID).findOne({
+    where: { id: productRowId },
+    populate: ['variants'],
+  });
+  if (!row || !Array.isArray(row.variants) || row.variants.length === 0) return;
+
+  const total = row.variants.reduce((acc: number, v: any) => acc + (Number(v.stock) || 0), 0);
+  if (Number(row.stock) !== total) {
+    await strapi.db.query(PRODUCT_UID).update({ where: { id: row.id }, data: { stock: total } });
+  }
+}
+
+/** Limpia la caché de /api/products para que la tienda muestre el stock nuevo. */
+export async function purgeProductsCache() {
+  try {
+    const store = strapi.plugin('strapi-cache')?.service('service')?.getCacheInstance?.();
+    await store?.clearByRegexp?.([/^.*:\/api\/products(\/.*)?(\?.*)?$/]);
+  } catch (error) {
+    strapi.log.warn(`[orders] No se pudo limpiar la caché de productos: ${error}`);
+  }
+}
 
 export class CheckoutError extends Error {}
 
@@ -101,6 +133,11 @@ export default factories.createCoreService(ORDER_UID, ({ strapi }) => ({
 
       let stock = Number(product.stock) || 0;
       let image = product.image || '';
+      const hasVariants = Array.isArray(product.variants) && product.variants.length > 0;
+
+      if (hasVariants && !color) {
+        throw new CheckoutError(`Elegí un color de ${product.name} antes de comprar`);
+      }
 
       if (color) {
         const variant = (product.variants || []).find(
@@ -250,6 +287,8 @@ export default factories.createCoreService(ORDER_UID, ({ strapi }) => ({
               data: { stock: Math.max(0, (Number(variant.stock) || 0) - quantity) },
             });
           }
+          // El stock general de un producto con variantes es la suma de las variantes
+          await syncVariantStock(row.id);
         } else {
           await strapi.db.query(PRODUCT_UID).update({
             where: { id: row.id },
@@ -259,12 +298,99 @@ export default factories.createCoreService(ORDER_UID, ({ strapi }) => ({
       }
     }
 
-    // Que la caché de /api/products no muestre el stock viejo
-    try {
-      const cache = strapi.plugin('strapi-cache');
-      await cache?.service('cacheStore')?.clearByUid?.(PRODUCT_UID);
-    } catch {
-      // Si el plugin no expone ese método, la caché vence sola (1 hora)
+    await purgeProductsCache();
+  },
+
+  /**
+   * Revisa los pedidos que quedaron pendientes (por ejemplo, si se perdió un
+   * aviso de Mercado Pago o la persona cerró la pestaña antes de volver de
+   * PayPal) y los acomoda consultando directamente a cada pasarela.
+   * Lo ejecuta una tarea programada (config/cron-tasks.ts).
+   */
+  async reconcilePendingOrders() {
+    const now = Date.now();
+    const pending: any[] = await strapi.db.query(ORDER_UID).findMany({
+      where: {
+        order_status: 'pending',
+        // Le damos 10 minutos a los avisos normales antes de revisar
+        createdAt: { $lt: new Date(now - 10 * 60 * 1000), $gt: new Date(now - RECONCILE_WINDOW_MS) },
+      },
+      limit: 50,
+    });
+
+    for (const order of pending) {
+      try {
+        if (order.payment_method === 'mercadopago') {
+          await this.reconcileMercadoPagoOrder(order);
+        } else if (order.payment_method === 'paypal' && order.payment_id) {
+          await this.reconcilePaypalOrder(order);
+        }
+      } catch (error) {
+        strapi.log.error(`[reconcile] Error revisando el pedido ${order.id}: ${error}`);
+      }
+    }
+
+    // Los que siguen pendientes después de la ventana se cancelan
+    const { count } = await strapi.db.query(ORDER_UID).updateMany({
+      where: { order_status: 'pending', createdAt: { $lt: new Date(now - RECONCILE_WINDOW_MS) } },
+      data: { order_status: 'failure' },
+    });
+    if (count) strapi.log.info(`[reconcile] ${count} pedido(s) pendiente(s) vencido(s) pasaron a cancelados`);
+  },
+
+  async reconcileMercadoPagoOrder(order: any) {
+    const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || '' });
+    const search: any = await new Payment(client).search({
+      options: { external_reference: String(order.id), sort: 'date_created', criteria: 'desc' },
+    });
+    const payments: any[] = search?.results || [];
+    const approved = payments.find((p) => p.status === 'approved');
+    if (approved) {
+      await this.processMercadoPagoPayment(approved);
+    }
+  },
+
+  async reconcilePaypalOrder(order: any) {
+    const paypal = strapi.service('api::order.paypal');
+    const status = await paypal.getOrderStatus(order.payment_id);
+    // APPROVED: la persona pagó pero no volvió al sitio, así que nadie capturó
+    if (status === 'APPROVED' || status === 'COMPLETED') {
+      const { completed } = await paypal.captureOrder(order.payment_id);
+      if (completed) await this.markOrderPaid(order.id);
+    }
+  },
+
+  /**
+   * Aplica un pago de Mercado Pago ya consultado a la API (nunca un aviso sin verificar).
+   */
+  async processMercadoPagoPayment(payment: any) {
+    const orderId = Number(payment?.external_reference);
+    if (!Number.isInteger(orderId)) return;
+
+    const order: any = await strapi.db.query(ORDER_UID).findOne({ where: { id: orderId } });
+    if (!order || order.payment_method !== 'mercadopago') {
+      strapi.log.warn(`[mercadopago] El pago ${payment?.id} apunta a un pedido inexistente (${orderId})`);
+      return;
+    }
+
+    if (payment.status === 'approved') {
+      // Según cómo informe MP el envío, puede venir dentro o aparte del monto
+      const amount = Number(payment.transaction_amount) || 0;
+      const shipping = Number(payment.shipping_amount) || 0;
+      const expected = Number(order.total) || 0;
+      const paid = Math.abs(amount - expected) <= 1 ? amount : amount + shipping;
+      if (Math.abs(paid - expected) > 1) {
+        strapi.log.error(
+          `[mercadopago] Monto distinto en el pedido ${orderId}: cobrado ${paid}, esperado ${expected}. No se marca como pagado.`
+        );
+        return;
+      }
+      await this.markOrderPaid(orderId, { paymentId: String(payment.id) });
+    } else if (['rejected', 'cancelled'].includes(payment.status) && order.order_status === 'pending') {
+      await strapi.db.query(ORDER_UID).update({
+        where: { id: orderId },
+        data: { order_status: 'failure', payment_id: String(payment.id) },
+      });
     }
   },
 
@@ -276,10 +402,14 @@ export default factories.createCoreService(ORDER_UID, ({ strapi }) => ({
     const firstName = order.first_name || 'cliente';
 
     if (order.is_new_user && order.user?.id) {
-      const resetCode = randomBytes(20).toString('hex');
+      const resetCode = randomBytes(32).toString('hex');
       await strapi.db.query('plugin::users-permissions.user').update({
         where: { id: order.user.id },
-        data: { resetPasswordToken: resetCode },
+        data: {
+          resetPasswordToken: resetCode,
+          // El link del mail de primera compra dura 7 días
+          resetPasswordTokenExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
       });
 
       await resend.emails.send({
