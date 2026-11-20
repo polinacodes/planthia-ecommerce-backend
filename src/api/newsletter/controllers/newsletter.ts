@@ -84,7 +84,8 @@ export default factories.createCoreController('api::newsletter.newsletter', ({ s
 
  
   async validateDiscount(ctx) {
-    const { code } = ctx.request.body;
+    // Al copiar y pegar el código suelen colarse espacios: los sacamos y pasamos a mayúsculas
+    const code = String(ctx.request.body?.code ?? '').trim().toUpperCase();
 
     console.log('🔍 Validando código:', code);
 

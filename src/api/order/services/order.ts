@@ -143,7 +143,7 @@ export default factories.createCoreService(ORDER_UID, ({ strapi }) => ({
     let discountAmount = 0;
 
     if (discountCode && discountCode.trim()) {
-      const code = discountCode.trim();
+      const code = discountCode.trim().toUpperCase();
       const subscriber: any = await strapi.db.query(NEWSLETTER_UID).findOne({
         where: { discount_code: code },
       });
