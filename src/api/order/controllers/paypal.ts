@@ -41,6 +41,29 @@ export default {
   },
 
   /**
+   * POST /api/paypal/cancel
+   * El front lo llama cuando la persona cancela en PayPal. El pedido pasa a
+   * "failure" (en el front se muestra como "Cancelado"). Solo funciona con el
+   * token de PayPal de esa compra y si el pedido sigue pendiente.
+   */
+  async cancel(ctx) {
+    const { orderId, token } = ctx.request.body || {};
+    if (!orderId || !token) return ctx.badRequest('Faltan datos del pago');
+
+    const { count } = await strapi.db.query('api::order.order').updateMany({
+      where: {
+        id: Number(orderId),
+        payment_method: 'paypal',
+        payment_id: String(token),
+        order_status: 'pending',
+      },
+      data: { order_status: 'failure' },
+    });
+
+    return ctx.send({ ok: count > 0 });
+  },
+
+  /**
    * POST /api/paypal/webhook
    * Respaldo por si la persona cierra la pestaña antes de volver al sitio.
    */

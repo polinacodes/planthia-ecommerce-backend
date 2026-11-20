@@ -10,6 +10,14 @@ export default {
     },
     {
       method: 'POST',
+      path: '/paypal/cancel',
+      handler: 'paypal.cancel',
+      config: {
+        auth: false,
+      },
+    },
+    {
+      method: 'POST',
       path: '/paypal/webhook',
       handler: 'paypal.webhook',
       config: {
