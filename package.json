@@ -15,7 +15,6 @@
     "upgrade:dry": "npx @strapi/upgrade latest --dry"
   },
   "dependencies": {
-    "@paypal/checkout-server-sdk": "^1.0.3",
     "@strapi/admin": "5.63.0",
     "@strapi/content-manager": "5.63.0",
     "@strapi/content-type-builder": "5.63.0",
