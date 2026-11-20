@@ -39,27 +39,34 @@ function isValidSignature(ctx, secret: string): boolean {
 }
 
 export default {
+  /**
+   * Mercado Pago manda dos formatos de aviso:
+   * - Webhook: ?data.id=123&type=payment (con firma x-signature)
+   * - IPN (viejo): ?id=123&topic=payment o topic=merchant_order (sin firma)
+   *
+   * La firma es una capa extra. Lo que realmente protege es que acá NUNCA se
+   * confía en el aviso: se consulta el pago a la API de MP con nuestro token y
+   * se controla el monto. Un aviso falso no puede inventar un pago aprobado.
+   */
   async webhook(ctx) {
     const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
-    const isProduction = process.env.NODE_ENV === 'production';
-
-    if (secret) {
-      if (!isValidSignature(ctx, secret)) {
-        strapi.log.warn('[mercadopago] Webhook con firma inválida, se ignora');
-        return ctx.unauthorized('Firma inválida');
-      }
-    } else if (isProduction) {
-      strapi.log.error('[mercadopago] Falta MERCADOPAGO_WEBHOOK_SECRET en producción');
-      return ctx.unauthorized('Webhook no configurado');
-    }
-
+    const query = ctx.query || {};
     const body = ctx.request.body || {};
-    const type = body.type ?? ctx.query?.type;
-    const paymentId = body.data?.id ?? ctx.query?.['data.id'];
 
-    // Otros avisos (merchant_order, etc.) no nos interesan
+    const type = body.type ?? query.type ?? query.topic;
+    const paymentId = body.data?.id ?? query['data.id'] ?? (query.topic === 'payment' ? query.id : undefined);
+
+    // Solo nos interesan los pagos (merchant_order y otros se ignoran)
     if (type !== 'payment' || !paymentId) {
       return ctx.send({ ok: true });
+    }
+
+    if (ctx.request.headers['x-signature']) {
+      if (!secret || !isValidSignature(ctx, secret)) {
+        strapi.log.warn(
+          `[mercadopago] Firma inválida en el aviso del pago ${paymentId}; se verifica igual contra la API de MP. Revisá MERCADOPAGO_WEBHOOK_SECRET.`
+        );
+      }
     }
 
     const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || '' });
