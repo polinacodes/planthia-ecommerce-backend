@@ -1,114 +1,59 @@
+/**
+ * Mails por cambios de estado hechos desde el admin de Strapi.
+ *
+ * El mail de "pagado" ya no sale de acá: lo manda markOrderPaid (services/order.ts)
+ * una sola vez por pedido. Antes este lifecycle se disparaba en CADA guardado,
+ * así que editar un pedido pagado desde el admin reenviaba el mail de compra.
+ *
+ * Ahora solo se manda un mail cuando el estado CAMBIA (por ejemplo, de "paid" a
+ * "shipped"), comparando el estado anterior (beforeUpdate) con el nuevo (afterUpdate).
+ */
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const ORDER_UID = 'api::order.order';
 
 export default {
+  async beforeUpdate(event) {
+    const where = event.params?.where;
+    if (!where?.id && !where?.documentId) return;
+
+    const current: any = await strapi.db.query(ORDER_UID).findOne({
+      where: where.id ? { id: where.id } : { documentId: where.documentId },
+      select: ['order_status'],
+    });
+    event.state = { ...(event.state || {}), previousStatus: current?.order_status ?? null };
+  },
+
   async afterUpdate(event) {
     const { result } = event;
+    const previousStatus = event.state?.previousStatus;
+    const newStatus = result?.order_status;
 
-    const order_status = result.order_status;
-    const id = result.id;
+    // Si no pudimos leer el estado anterior, no mandamos nada (mejor eso que un mail repetido)
+    if (!result || previousStatus === undefined || newStatus === previousStatus) return;
 
-    // Necesitamos populate del user que no viene en result
-    const order: any = await strapi.entityService.findOne('api::order.order', id, {
-      populate: ['user']
-    });
+    if (newStatus === 'shipped') {
+      const key = process.env.RESEND_API_KEY;
+      if (!key || !result.customer_email) return;
 
-    if (!order) return;
-
-    // ================================================
-    // PAID
-    // ================================================
-    if (order_status === 'paid') {
-
-      // --- CUPÓN ---
-      if (order.discount_code) {
-        try {
-          const entry = await strapi.db.query('api::newsletter.newsletter').findOne({
-            where: { discount_code: order.discount_code }
-          });
-          if (entry) {
-            await strapi.entityService.update('api::newsletter.newsletter', entry.id, {
-              data: { discount_used: true }
-            });
-          }
-        } catch (e) {
-          console.error('Error cupón:', e);
-        }
-      }
-
-      // --- EMAIL ---
       try {
-        if (order.is_new_user) {
-          const crypto = require('crypto');
-          const resetCode = crypto.randomBytes(20).toString('hex');
-
-          await strapi.db.query('plugin::users-permissions.user').update({
-            where: { id: order.user.id },
-            data: { resetPasswordToken: resetCode },
-          });
-
-          await resend.emails.send({
-            from: 'Planthia <noreply@polinacodes.dev>',
-            to: [order.customer_email],
-            subject: '¡Gracias por tu compra! Configurá tu contraseña',
-            template: {
-              id: 'confirmacion-compra-nuevo-cliente',
-              variables: {
-                firstName: order.first_name || 'cliente',
-                orderId: id,
-                resetUrl: `${process.env.FRONTEND_URL}/set-password?code=${resetCode}`,
-              }
-            }
-          });
-
-          console.log(`✅ Email nuevo cliente enviado a ${order.customer_email}`);
-
-        } else {
-          await resend.emails.send({
-            from: 'Planthia <noreply@polinacodes.dev>',
-            to: [order.customer_email],
-            subject: '¡Gracias por tu compra!',
-            template: {
-              id: 'confirmacion-compra-cliente-registrado',
-              variables: {
-                firstName: order.first_name || 'cliente',
-                orderId: id,
-                accountUrl: `${process.env.FRONTEND_URL}/account`,
-              }
-            }
-          });
-
-          console.log(`✅ Email cliente registrado enviado a ${order.customer_email}`);
-        }
-      } catch (emailError) {
-        console.error('Error enviando email paid:', emailError);
-      }
-
-      // ================================================
-      // SHIPPED
-      // ================================================
-    } else if (order_status === 'shipped') {
-      try {
-        await resend.emails.send({
+        await new Resend(key).emails.send({
           from: 'Planthia <noreply@polinacodes.dev>',
-          to: [order.customer_email],
+          to: [result.customer_email],
           subject: '¡Tu pedido está en camino!',
           template: {
             id: 'pedido-en-camino',
             variables: {
-              firstName: order.first_name || 'cliente',
-              orderId: id,
+              firstName: result.first_name || 'cliente',
+              orderId: result.id,
               accountUrl: `${process.env.FRONTEND_URL}/account`,
-            }
-          }
+            },
+          },
         });
-
-        console.log(`✅ Email pedido en camino enviado a ${order.customer_email}`);
-
-      } catch (emailError) {
-        console.error('Error enviando email shipped:', emailError);
+        strapi.log.info(`[orders] Mail "en camino" enviado (pedido ${result.id})`);
+      } catch (error) {
+        strapi.log.error(`[orders] Error enviando mail "en camino" (pedido ${result.id}): ${error}`);
       }
     }
-  }
+  },
 };
