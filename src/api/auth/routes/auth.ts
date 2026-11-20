@@ -28,5 +28,11 @@ export default {
       handler: 'api::auth.auth.customForgotPassword',
       config: { auth: false },
     },
+    {
+      // Requiere el permiso "updateProfile" (Auth) del rol Authenticated
+      method: 'PUT',
+      path: '/profile',
+      handler: 'api::auth.auth.updateProfile',
+    },
   ],
 };

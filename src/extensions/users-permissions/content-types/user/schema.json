@@ -43,6 +43,11 @@
       "private": true,
       "searchable": false
     },
+    "resetPasswordTokenExpiresAt": {
+      "type": "datetime",
+      "private": true,
+      "configurable": false
+    },
     "confirmationToken": {
       "type": "string",
       "configurable": false,
