@@ -1,101 +1,15 @@
-// src/api/order/routes/order.ts
-// export default {
-//   routes: [
-//     {
-//       method: 'POST',
-//       path: '/orders/checkout',
-//       handler: 'order.createCheckout',
-//       config: {
-//         auth: false,
-//       },
-//     },
-//     {
-//       method: 'GET',
-//       path: '/orders/:id',
-//       handler: 'order.findOne',
-//       config: {
-//         auth: false,
-//       },
-//     },
-//     {
-//       method: 'PUT',
-//       path: '/orders/:id/status',
-//       handler: 'order.updateStatus',
-//       config: {
-//         auth: false,
-//       },
-//     },
-//   ],
-// };
-
-
-// src/api/order/routes/order.ts
-// export default {
-//   routes: [
-//     {
-//       method: 'GET',
-//       path: '/orders',
-//       handler: 'order.find',
-//       config: {
-//         auth: false,
-//       },
-//     },
-//     {
-//       method: 'GET',
-//       path: '/orders/:id',
-//       handler: 'order.findOne',
-//       config: {
-//         auth: false,
-//       },
-//     },
-//     {
-//       method: 'POST',
-//       path: '/orders',
-//       handler: 'order.create',
-//       config: {
-//         auth: false,
-//       },
-//     },
-//     {
-//       method: 'PUT',
-//       path: '/orders/:id',
-//       handler: 'order.update',
-//       config: {
-//         auth: false,
-//       },
-//     },
-//     {
-//       method: 'DELETE',
-//       path: '/orders/:id',
-//       handler: 'order.delete',
-//       config: {
-//         auth: false,
-//       },
-//     },
-//     {
-//       method: 'POST',
-//       path: '/orders/checkout',
-//       handler: 'order.createCheckout',
-//       config: {
-//         auth: false,
-//       },
-//     },
-//     {
-//       method: 'PUT',
-//       path: '/orders/:id/status',
-//       handler: 'order.updateStatus',
-//       config: {
-//         auth: false,
-//       },
-//     },
-//   ],
-// };
-
-//RUTAS CON SEGURIDAD
-// src/api/order/routes/order.ts
+/**
+ * Rutas de pedidos.
+ *
+ * Se sacaron a propósito:
+ * - GET /orders y GET /orders/:id: devolvían pedidos de cualquier cliente.
+ * - POST/PUT/DELETE /orders: los pedidos se crean solo desde el checkout y se
+ *   editan desde el admin de Strapi.
+ * - PUT /orders/:id/status (pública): cualquiera podía marcar un pedido como pagado.
+ *   Ahora el pago lo confirman los webhooks y la captura de PayPal.
+ */
 export default {
   routes: [
-    // RUTAS PÚBLICAS 
     {
       method: 'POST',
       path: '/orders/checkout',
@@ -104,74 +18,11 @@ export default {
         auth: false,
       },
     },
-    // RUTAS PROTEGIDAS - SOLO USUARIOS AUTENTICADOS CON PERMISOS
     {
+      // Requiere el permiso "myOrders" del rol Authenticated
       method: 'GET',
       path: '/orders/my-orders',
       handler: 'order.myOrders',
-      config: {
-        auth: {
-          scope: ['api::order.order.find']
-        }
-      },
-    },
-    {
-      method: 'GET',
-      path: '/orders',
-      handler: 'order.find',
-      config: {
-        auth: {
-          scope: ['api::order.order.find']
-        }
-      },
-    },
-    {
-      method: 'GET',
-      path: '/orders/:id',
-      handler: 'order.findOne',
-      config: {
-        auth: {
-          scope: ['api::order.order.findOne']
-        }
-      },
-    },
-    {
-      method: 'POST',
-      path: '/orders',
-      handler: 'order.create',
-      config: {
-        auth: {
-          scope: ['api::order.order.create']
-        }
-      },
-    },
-    {
-      method: 'PUT',
-      path: '/orders/:id',
-      handler: 'order.update',
-      config: {
-        auth: {
-          scope: ['api::order.order.update']
-        }
-      },
-    },
-    {
-      method: 'DELETE',
-      path: '/orders/:id',
-      handler: 'order.delete',
-      config: {
-        auth: {
-          scope: ['api::order.order.delete']
-        }
-      },
-    },
-    {
-      method: 'PUT',
-      path: '/orders/:id/status',
-      handler: 'order.updateStatus',
-      config: {
-        auth: false,
-      },
     },
   ],
 };
