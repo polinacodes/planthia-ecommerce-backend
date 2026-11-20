@@ -20,6 +20,18 @@
     "light": {
       "type": "string"
     },
+    "light_shade": {
+      "type": "boolean",
+      "default": false
+    },
+    "light_indirect": {
+      "type": "boolean",
+      "default": false
+    },
+    "light_sun": {
+      "type": "boolean",
+      "default": false
+    },
     "water": {
       "type": "string"
     },
@@ -39,7 +51,11 @@
       "type": "boolean"
     },
     "difficulty": {
-      "type": "string"
+      "type": "enumeration",
+      "enum": [
+        "principiante",
+        "experto"
+      ]
     },
     "care_tips": {
       "type": "text"

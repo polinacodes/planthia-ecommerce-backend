@@ -7,11 +7,15 @@ export interface ProductPlantMetadata extends Struct.ComponentSchema {
   };
   attributes: {
     care_tips: Schema.Attribute.Text;
-    difficulty: Schema.Attribute.String;
+    difficulty: Schema.Attribute.Enumeration<['principiante', 'experto']>;
     dimensions: Schema.Attribute.String;
     growth: Schema.Attribute.String;
     humidity: Schema.Attribute.String;
     light: Schema.Attribute.String;
+    light_indirect: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
+    light_shade: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
+    light_sun: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     material: Schema.Attribute.String;
     origin: Schema.Attribute.String;
     pet_friendly: Schema.Attribute.Boolean;
