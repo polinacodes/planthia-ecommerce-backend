@@ -91,8 +91,11 @@ export default {
 
     if (payment.status === 'approved') {
       // El monto cobrado tiene que coincidir con el total del pedido
-      const paid = Number(payment.transaction_amount) || 0;
+      // Según cómo informe MP el envío, puede venir dentro o aparte del monto
+      const amount = Number(payment.transaction_amount) || 0;
+      const shipping = Number(payment.shipping_amount) || 0;
       const expected = Number(order.total) || 0;
+      const paid = Math.abs(amount - expected) <= 1 ? amount : amount + shipping;
       if (Math.abs(paid - expected) > 1) {
         strapi.log.error(
           `[mercadopago] Monto distinto en el pedido ${orderId}: cobrado ${paid}, esperado ${expected}. No se marca como pagado.`

@@ -25,6 +25,7 @@ const round2 = (value: number) => Math.round(value * 100) / 100;
 export class CheckoutError extends Error {}
 
 export interface CartLineInput {
+  documentId?: string;
   productId?: string | number;
   id?: string | number;
   color?: string;
@@ -75,17 +76,22 @@ export default factories.createCoreService(ORDER_UID, ({ strapi }) => ({
 
     for (const line of cart) {
       const { id, color } = parseCartId(line);
+      const documentId = typeof line.documentId === 'string' && line.documentId.trim() ? line.documentId.trim() : null;
       const quantity = Number(line.quantity);
 
-      if (!Number.isInteger(id) || id <= 0) {
+      if (!documentId && (!Number.isInteger(id) || id <= 0)) {
         throw new CheckoutError('Hay un producto inválido en el carrito');
       }
       if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY_PER_ITEM) {
         throw new CheckoutError('La cantidad de un producto no es válida');
       }
 
+      // El documentId es fijo; el id numérico cambia cada vez que se republica
+      // el producto, así que queda solo como respaldo para carritos viejos.
       const product: any = await strapi.db.query(PRODUCT_UID).findOne({
-        where: { id, publishedAt: { $notNull: true } },
+        where: documentId
+          ? { documentId, publishedAt: { $notNull: true } }
+          : { id, publishedAt: { $notNull: true } },
         populate: ['variants'],
       });
 
