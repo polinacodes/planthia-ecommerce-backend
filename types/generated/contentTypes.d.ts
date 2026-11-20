@@ -575,6 +575,8 @@ export interface ApiNewsletterNewsletter extends Struct.CollectionTypeSchema {
       Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
     subscribed_at: Schema.Attribute.DateTime;
+    unsubscribe_token: Schema.Attribute.String & Schema.Attribute.Private;
+    unsubscribed_at: Schema.Attribute.DateTime;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;

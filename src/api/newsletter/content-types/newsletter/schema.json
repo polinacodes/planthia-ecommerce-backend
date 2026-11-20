@@ -29,6 +29,13 @@
     "discount_sent": {
       "type": "boolean",
       "default": false
+    },
+    "unsubscribe_token": {
+      "type": "string",
+      "private": true
+    },
+    "unsubscribed_at": {
+      "type": "datetime"
     }
   }
 }

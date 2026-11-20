@@ -16,6 +16,16 @@ export default {
         auth: false,
       },
     },
+    {
+      // Baja del newsletter: desde la página /newsletter/baja o desde el botón
+      // "Cancelar suscripción" de Gmail (List-Unsubscribe-Post, token en la URL)
+      method: 'POST',
+      path: '/newsletter/unsubscribe',
+      handler: 'newsletter.unsubscribe',
+      config: {
+        auth: false,
+      },
+    },
      {
       method: 'POST',
       path: '/validate-discount',
