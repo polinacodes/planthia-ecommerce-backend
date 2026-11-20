@@ -29,6 +29,12 @@ export default {
       config: { auth: false },
     },
     {
+      method: 'GET',
+      path: '/auth/reset-code-status',
+      handler: 'api::auth.auth.resetCodeStatus',
+      config: { auth: false },
+    },
+    {
       // Requiere el permiso "updateProfile" (Auth) del rol Authenticated
       method: 'PUT',
       path: '/profile',

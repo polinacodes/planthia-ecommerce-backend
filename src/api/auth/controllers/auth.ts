@@ -141,6 +141,24 @@ export default {
     return ctx.send(genericResponse);
   },
 
+  /**
+   * GET /api/auth/reset-code-status?code=...
+   * Para que la página de nueva contraseña avise apenas se abre si el link
+   * venció o ya se usó. Los códigos son aleatorios de 64 caracteres, así que
+   * no se pueden adivinar probando.
+   */
+  async resetCodeStatus(ctx) {
+    const code = String(ctx.query?.code || '');
+    if (!code) return ctx.send({ valid: false });
+
+    const user: any = await strapi.db.query(USER_UID).findOne({ where: { resetPasswordToken: code } });
+    const expired = user?.resetPasswordTokenExpiresAt
+      ? new Date(user.resetPasswordTokenExpiresAt).getTime() < Date.now()
+      : false;
+
+    return ctx.send({ valid: !!user && !expired && !user.blocked });
+  },
+
   async resetPasswordWithToken(ctx) {
     const { code, password, passwordConfirmation } = ctx.request.body || {};
 
