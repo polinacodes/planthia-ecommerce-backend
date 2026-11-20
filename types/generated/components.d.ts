@@ -37,7 +37,7 @@ export interface ProductVariant extends Struct.ComponentSchema {
 }
 
 declare module '@strapi/strapi' {
-  export module Public {
+  export namespace Public {
     export interface ComponentSchemas {
       'product.plant-metadata': ProductPlantMetadata;
       'product.variant': ProductVariant;
