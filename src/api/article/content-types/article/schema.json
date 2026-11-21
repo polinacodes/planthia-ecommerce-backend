@@ -1,0 +1,50 @@
+{
+  "kind": "collectionType",
+  "collectionName": "articles",
+  "info": {
+    "singularName": "article",
+    "pluralName": "articles",
+    "displayName": "Artículo",
+    "description": "Artículos del blog"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "title",
+      "required": true
+    },
+    "excerpt": {
+      "type": "text",
+      "maxLength": 220
+    },
+    "cover": {
+      "type": "string"
+    },
+    "category": {
+      "type": "enumeration",
+      "enum": ["cuidados", "decoracion", "huerta"],
+      "default": "cuidados",
+      "required": true
+    },
+    "reading_time": {
+      "type": "integer",
+      "min": 1
+    },
+    "content": {
+      "type": "richtext"
+    },
+    "products": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::product.product"
+    }
+  }
+}

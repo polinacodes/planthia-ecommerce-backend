@@ -21,5 +21,28 @@ export default {
     } catch (error) {
       strapi.log.error(`[bootstrap] Error recalculando el stock de variantes: ${error}`);
     }
+
+    // El blog es público: cualquiera puede listar y leer artículos (solo lectura).
+    // Se da el permiso al arrancar para no tener que tildarlo a mano en cada entorno.
+    try {
+      const publicRole = await strapi.db
+        .query('plugin::users-permissions.role')
+        .findOne({ where: { type: 'public' } });
+
+      if (publicRole) {
+        for (const action of ['api::article.article.find', 'api::article.article.findOne']) {
+          const exists = await strapi.db
+            .query('plugin::users-permissions.permission')
+            .findOne({ where: { action, role: publicRole.id } });
+          if (!exists) {
+            await strapi.db
+              .query('plugin::users-permissions.permission')
+              .create({ data: { action, role: publicRole.id } });
+          }
+        }
+      }
+    } catch (error) {
+      strapi.log.error(`[bootstrap] Error dando permisos públicos al blog: ${error}`);
+    }
   },
 };
