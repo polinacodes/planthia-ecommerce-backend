@@ -10,7 +10,21 @@ const config: Core.Config.Middlewares = [
       headers: ['Content-Type', 'Authorization', 'Origin', 'Accept', 'Cache-Control'],
     },
   },
-  'strapi::security',
+  {
+    // Permite que el admin muestre las imágenes guardadas en Cloudinary
+    name: 'strapi::security',
+    config: {
+      contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+          'connect-src': ["'self'", 'https:'],
+          'img-src': ["'self'", 'data:', 'blob:', 'market-assets.strapi.io', 'res.cloudinary.com'],
+          'media-src': ["'self'", 'data:', 'blob:', 'market-assets.strapi.io', 'res.cloudinary.com'],
+          upgradeInsecureRequests: null,
+        },
+      },
+    },
+  },
   'strapi::poweredBy',
   'strapi::query',
   'strapi::body',

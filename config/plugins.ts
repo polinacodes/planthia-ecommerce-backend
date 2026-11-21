@@ -73,6 +73,24 @@ const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Plugin =>
         },
       },
     },
+
+    // Las imágenes que se suben desde el admin van directo a Cloudinary
+    // (el disco de Render se borra en cada deploy, así que no pueden quedar en el servidor)
+    upload: {
+      config: {
+        provider: 'cloudinary',
+        providerOptions: {
+          cloud_name: env('CLOUDINARY_NAME'),
+          api_key: env('CLOUDINARY_KEY'),
+          api_secret: env('CLOUDINARY_SECRET'),
+        },
+        actionOptions: {
+          upload: { folder: 'planthia' },
+          uploadStream: { folder: 'planthia' },
+          delete: {},
+        },
+      },
+    },
   };
 };
 
