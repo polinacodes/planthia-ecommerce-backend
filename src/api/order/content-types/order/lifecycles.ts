@@ -7,6 +7,7 @@
  *
  * Ahora solo se manda un mail cuando el estado CAMBIA (por ejemplo, de "paid" a
  * "shipped"), comparando el estado anterior (beforeUpdate) con el nuevo (afterUpdate).
+ * Estados con mail: "shipped" (pedido en camino) y "delivered" (pedido entregado).
  */
 import { Resend } from 'resend';
 
@@ -32,28 +33,35 @@ export default {
     // Si no pudimos leer el estado anterior, no mandamos nada (mejor eso que un mail repetido)
     if (!result || previousStatus === undefined || newStatus === previousStatus) return;
 
-    if (newStatus === 'shipped') {
-      const key = process.env.RESEND_API_KEY;
-      if (!key || !result.customer_email) return;
+    // Mails de Resend según el estado nuevo (cada uno con su plantilla)
+    const STATUS_EMAILS: Record<string, { template: string; subject: string; label: string }> = {
+      shipped: { template: 'pedido-en-camino', subject: '¡Tu pedido está en camino!', label: 'en camino' },
+      delivered: { template: 'pedido-entregado', subject: '¡Tu pedido llegó!', label: 'entregado' },
+    };
 
-      try {
-        await new Resend(key).emails.send({
-          from: 'Planthia <noreply@polinacodes.dev>',
-          to: [result.customer_email],
-          subject: '¡Tu pedido está en camino!',
-          template: {
-            id: 'pedido-en-camino',
-            variables: {
-              firstName: result.first_name || 'cliente',
-              orderId: result.id,
-              accountUrl: `${process.env.FRONTEND_URL}/account`,
-            },
+    const email = STATUS_EMAILS[newStatus];
+    if (!email) return;
+
+    const key = process.env.RESEND_API_KEY;
+    if (!key || !result.customer_email) return;
+
+    try {
+      await new Resend(key).emails.send({
+        from: 'Planthia <noreply@polinacodes.dev>',
+        to: [result.customer_email],
+        subject: email.subject,
+        template: {
+          id: email.template,
+          variables: {
+            firstName: result.first_name || 'cliente',
+            orderId: result.id,
+            accountUrl: `${process.env.FRONTEND_URL}/account`,
           },
-        });
-        strapi.log.info(`[orders] Mail "en camino" enviado (pedido ${result.id})`);
-      } catch (error) {
-        strapi.log.error(`[orders] Error enviando mail "en camino" (pedido ${result.id}): ${error}`);
-      }
+        },
+      });
+      strapi.log.info(`[orders] Mail "${email.label}" enviado (pedido ${result.id})`);
+    } catch (error) {
+      strapi.log.error(`[orders] Error enviando mail "${email.label}" (pedido ${result.id}): ${error}`);
     }
   },
 };
